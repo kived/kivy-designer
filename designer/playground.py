@@ -5,8 +5,10 @@ from kivy.uix.scatter import ScatterPlane
 from kivy.uix.boxlayout import BoxLayout
 from kivy.uix.layout import Layout
 from kivy.properties import ObjectProperty, BooleanProperty,\
-    OptionProperty, ListProperty
+    OptionProperty, ListProperty, NumericProperty
 from kivy.app import App
+from kivy.core.window import Window
+from kivy.metrics import sp
 from kivy.uix.filechooser import FileChooserListView, FileChooserIconView
 from kivy.uix.floatlayout import FloatLayout
 from kivy.uix.sandbox import Sandbox
@@ -28,6 +30,7 @@ from designer.common import widgets
 from designer.tree import Tree
 from designer.undo_manager import WidgetOperation, WidgetDragOperation
 from designer.uix.designer_sandbox import DesignerSandbox
+from designer.uix.adorner import Adorner
 
 
 def widget_contains(container, child):
@@ -187,9 +190,9 @@ class PlaygroundDragElement(BoxLayout):
                         self.child, self.center_x, self.y - 20)
 
                 else:
-                    # self.widgettree.collide_point(self.center_x, self.y)
-                    # not working :(
-                    # had to use this method
+                    #self.widgettree.collide_point(self.center_x, self.y)
+                    #not working :(
+                    #had to use this method
                     if self.is_intersecting_widgettree(self.center_x, self.y):
                         node = self.widgettree.tree.get_node_at_pos(
                             (self.center_x, touch.y))
@@ -307,9 +310,9 @@ class PlaygroundDragElement(BoxLayout):
                     widget_from = 'playground'
 
                 else:
-                    # self.widgettree.collide_point(self.center_x, self.y)
-                    # not working :(
-                    # had to use this method
+                    #self.widgettree.collide_point(self.center_x, self.y)
+                    #not working :(
+                    #had to use this method
                     if self.is_intersecting_widgettree(self.center_x, self.y):
                         node = self.widgettree.tree.get_node_at_pos(
                             (self.center_x, touch.y))
@@ -376,9 +379,9 @@ class PlaygroundDragElement(BoxLayout):
                                 child, self.center_x, self.y - 20)
 
                         else:
-                            # playground.add_widget_to_parent(child,target)
-                            # doesn't work, don't know why :/.
-                            # so, has to use this
+                            #playground.add_widget_to_parent(child,target)
+                            #doesn't work, don't know why :/.
+                            #so, has to use this
                             self.playground.add_widget_to_parent(type(child)(),
                                                                  target)
 
@@ -459,6 +462,12 @@ class Playground(ScatterPlane):
        :data:`dragging` is a :class:`~kivy.properties.BooleanProperty`
     '''
 
+    drag_tolerance = NumericProperty(sp(12))
+    '''Pixel tolerance for popping dragged widget out of Playground and
+       into PlaygroundDragElement.
+       :data:`drag_tolerance` is a :class:`~kivy.properties.NumericProperty`
+    '''
+
     __events__ = ('on_show_edit',)
 
     def __init__(self, **kwargs):
@@ -504,8 +513,8 @@ class Playground(ScatterPlane):
             target = self.find_target(local_x, local_y, self.root, widget)
 
         if not self.from_drag:
-            # wx, wy = target.to_widget(x, y)
-            # widget.pos = wx, wy
+            #wx, wy = target.to_widget(x, y)
+            #widget.pos = wx, wy
             widget.pos = 0, 0
             self.add_widget_to_parent(widget, target)
 
@@ -636,8 +645,8 @@ class Playground(ScatterPlane):
            the changes done by currently opened project.
         '''
 
-        # Cleanup is called when project is created or loaded
-        # so this operation shouldn't be recorded in Undo
+        #Cleanup is called when project is created or loaded
+        #so this operation shouldn't be recorded in Undo
         if self.root:
             self.remove_widget_from_parent(self.root, from_undo=True,
                                            from_kv=True)
@@ -675,7 +684,7 @@ class Playground(ScatterPlane):
             self.root.parent.remove_widget(self.root)
             self.root = None
 
-        # self.tree.delete(widget)
+        #self.tree.delete(widget)
         root.ui_creator.widgettree.refresh()
         if not from_undo:
             root.undo_manager.push_operation(
@@ -684,8 +693,10 @@ class Playground(ScatterPlane):
     def find_target(self, x, y, target, widget=None):
         '''This widget is used to find the widget which collides with x,y
         '''
-        if target is None or not target.collide_point(x, y):
+        if target is None:
             return None
+
+        collides = target.collide_point(x, y)
 
         x, y = target.to_local(x, y)
         class_rules = App.get_running_app().root.project_loader.class_rules
@@ -704,7 +715,7 @@ class Playground(ScatterPlane):
                     is_child_complex = True
                     break
 
-            # if point lies in custom wigdet's child then return custom widget
+            #if point lies in custom wigdet's child then return custom widget
             if is_child_custom or is_child_complex:
                 if not widget and self._custom_widget_collides(child, x, y):
                     return child
@@ -717,23 +728,22 @@ class Playground(ScatterPlane):
                             return _item
 
                     else:
-                        return target
+                        return target if collides else None
 
             elif isinstance(child.parent, Carousel):
                 t = self.find_target(x, y, child, widget)
                 return t
 
             else:
-                if not child.collide_point(x, y):
-                    continue
-
                 if not self.allowed_target_for(child, widget) and not\
                         child.children:
                     continue
 
-                return self.find_target(x, y, child, widget)
+                t = self.find_target(x, y, child, widget)
+                if t and t.collide_point(x, y):
+                    return t
 
-        return target
+        return target if collides else None
 
     def _custom_widget_collides(self, widget, x, y):
         '''This widget is used to find which custom widget collides with x,y
@@ -860,7 +870,7 @@ class Playground(ScatterPlane):
                     is_child_custom = True
                     break
 
-            # find appropriate parent to add widget_to_paste
+            #find appropriate parent to add widget_to_paste
             while parent:
                 if isinstance(parent, Layout) and (not is_child_custom
                                                    or root_widget == parent):
@@ -943,9 +953,12 @@ class Playground(ScatterPlane):
            which will start dragging currently selected widget.
         '''
         if not self.dragging and not self.drag_operation and\
-                self.selected_widget:
-            # x, y = self.to_local(*touch.pos)
-            # target = self.find_target(x, y, self.root)
+                self.selected_widget and self.touch_pos:
+            tolerance = self.drag_tolerance
+            deltatouch = abs(self.touch_pos[0] - Window.mouse_pos[0]), abs(self.touch_pos[1] - Window.mouse_pos[1])
+            if deltatouch[0] > tolerance or deltatouch[1] > tolerance:
+                return
+            
             drag_widget = self.selected_widget
             self._widget_x, self._widget_y = drag_widget.x, drag_widget.y
             index = self.selected_widget.parent.children.index(drag_widget)
@@ -961,28 +974,38 @@ class Playground(ScatterPlane):
             self.from_drag = True
             App.get_running_app().focus_widget(None)
 
+    def prepare_widget_dragging(self, touch, delay=1):
+        if not self.dragging:
+            self.touch = touch
+            self.touch_pos = touch.pos
+            Clock.schedule_once(self.start_widget_dragging, delay)
+
     def on_touch_down(self, touch):
         '''An override of ScatterPlane's on_touch_down.
            Used to determine the current selected widget and also emits,
            on_show_edit event.
         '''
 
+        self.touch_pos = None
         if super(ScatterPlane, self).collide_point(*touch.pos) and \
                 not self.keyboard:
             win = EventLoop.window
             self.keyboard = win.request_keyboard(self._keyboard_released, self)
             self.keyboard.bind(on_key_down=self._on_keyboard_down)
+        
+        for child in self.children:
+            if isinstance(child, Adorner):
+                if child.on_touch_down(touch):
+                    return True
 
         if self.selection_mode:
-            if super(ScatterPlane, self).collide_point(*touch.pos):
-                if not self.dragging:
-                    self.touch = touch
-                    Clock.schedule_once(self.start_widget_dragging, 1)
+            x, y = self.to_local(*touch.pos)
+            target = self.find_target(x, y, self.root)
+            if target:
+                self.prepare_widget_dragging(touch)
 
-                x, y = self.to_local(*touch.pos)
-                target = self.find_target(x, y, self.root)
                 self.selected_widget = target
-                App.get_running_app().focus_widget(target)
+                App.get_running_app().focus_widget(target, touch=touch)
                 self.clicked = True
                 self.dispatch('on_show_edit', Playground)
                 return True

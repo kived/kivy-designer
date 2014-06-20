@@ -436,7 +436,7 @@
         on_release: root.dispatch('on_delete')
 
 <Playground>:
-    do_scale: False
+    do_scale: True
     do_rotation: False
     size_hint: None, None
     size: 550, 350
@@ -616,6 +616,7 @@
     splitter_widget_tree: splitter_widget_tree
     propertyviewer: propertyviewer
     playground: playground
+    adornment: adornment
     widgettree: widgettree
     error_console: error_console
     kivy_console: kivy_console
@@ -653,12 +654,17 @@
 
             Playground:
                 id: playground
+                scale: 0.7
                 canvas.before:
                     Color:
                         rgb: 0, 0, 0
                     Rectangle:
                         size: self.size
                 on_show_edit: root.on_show_edit()
+
+            FloatLayout:
+                id: adornment
+                size_hint: 1, 1
 
             Splitter:
                 id: splitter_kv
@@ -1075,3 +1081,114 @@
         on_height: root.on_statusbar_height()
         height: '20pt'
         pos_hint: {'y': 0}
+
+<Adorner>:
+    # Corners
+    BoxLayout:
+        id: bottom_left
+        size_hint: None, None
+        size: root.button_size
+        top: 0
+        right: 0
+    
+    BoxLayout:
+        id: bottom_right
+        size_hint: None, None
+        size: root.button_size
+        top: 0
+        x: root.width
+    
+    BoxLayout:
+        id: top_left
+        size_hint: None, None
+        size: root.button_size
+        y: root.height
+        right: 0
+    
+    BoxLayout:
+        id: top_right
+        size_hint: None, None
+        size: root.button_size
+        y: root.height
+        x: root.width
+    
+    # Sides
+    FloatLayout:
+        size_hint: None, None
+        size: (root.width, root.button_width)
+        top: 0
+        x: 0
+        StackLayout:
+            id: bottom
+            orientation: 'rl-tb'
+            padding: root.handle_width, 0
+            size_hint: None, 1
+            width: self.minimum_width
+            pos_hint: {'center_x': 0.5, 'center_y': 0.5}
+    
+    FloatLayout:
+        size_hint: None, None
+        size: (root.width, root.button_width)
+        y: root.height
+        x: 0
+        StackLayout:
+            id: top
+            orientation: 'lr-tb'
+            padding: root.handle_width, 0
+            size_hint: None, 1
+            width: self.minimum_width
+            pos_hint: {'center_x': 0.5, 'center_y': 0.5}
+    
+    FloatLayout:
+        size_hint: None, None
+        size: (root.button_width, root.height)
+        y: 0
+        right: 0
+        StackLayout:
+            id: left
+            orientation: 'tb-lr'
+            padding: 0, root.handle_width
+            size_hint: 1, None
+            height: self.minimum_height
+            pos_hint: {'center_x': 0.5, 'center_y': 0.5}
+    
+    FloatLayout:
+        size_hint: None, None
+        size: (root.button_width, root.height)
+        y: 0
+        x: root.width
+        StackLayout:
+            id: right
+            orientation: 'bt-rl'
+            padding: 0, root.handle_width
+            size_hint: 1, None
+            height: self.minimum_height
+            pos_hint: {'center_x': 0.5, 'center_y': 0.5}
+    
+    FloatLayout:
+        id: center
+        size_hint: None, None
+        size: root.size
+        pos: 0, 0
+        canvas:
+            Color:
+                rgba: root.border_color
+            Line:
+                points: 0, 0, self.width, 0, self.width, self.height, 0, self.height
+                close: True
+                width: root.border_width
+    
+<AdornerButton>:
+    size_hint: None, None
+    opacity: 0 if self.disabled else (1 if self.hover else 0.25)
+
+<Handle>:
+    size_hint: None, None
+    size: 12, 12
+    canvas:
+        Color:
+            rgba: root.color
+        Rectangle:
+            pos: self.pos
+            size: self.size
+
