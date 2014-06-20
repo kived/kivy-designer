@@ -46,6 +46,7 @@ from designer.new_dialog import NewProjectDialog, NEW_PROJECTS
 from designer.eventviewer import EventViewer
 from designer.uix.designer_action_items import DesignerActionButton
 from designer.help_dialog import HelpDialog, AboutDialog
+from designer.uix.adorner import get_adorner_for
 
 NEW_PROJECT_DIR_NAME = 'new_proj'
 NEW_TEMPLATES_DIR = 'new_templates'
@@ -1166,6 +1167,9 @@ class DesignerApp(App):
     widget_focused = ObjectProperty(allownone=True)
     '''Currently focused widget
     '''
+    
+    _adorner = ObjectProperty(allownone=True)
+    _adorner_factory = ObjectProperty(allownone=True)
 
     title = 'Kivy Designer'
 
@@ -1202,6 +1206,8 @@ class DesignerApp(App):
         Factory.register('PlaygroundSizeSelector', module='designer.uix.playground_size_selector')
 
         self._widget_focused = None
+        self._adorner = None
+        self._adorner_factory = None
         self.root = Designer()
         Clock.schedule_once(self._setup)
 
@@ -1296,36 +1302,33 @@ class DesignerApp(App):
         container.widgettree = self.root.ui_creator.widgettree
         return container
 
-    def focus_widget(self, widget, *largs):
+    def focus_widget(self, widget, dt=None, touch=None, *largs):
         '''Called when a widget is select in Playground. It will also draw
            lines around focussed widget.
         '''
-
-        if self._widget_focused and (widget is None or
-                                     self._widget_focused[0] != widget):
-            fwidget = self._widget_focused[0]
-            for instr in self._widget_focused[1:]:
-                fwidget.canvas.after.remove(instr)
-            self._widget_focused = []
-
         self.widget_focused = widget
         self.root.ui_creator.widgettree.refresh()
 
         if not widget:
             return
 
-        x, y = widget.pos
-        right, top = widget.right, widget.top
-        points = [x, y, right, y, right, top, x, top]
-        if self._widget_focused:
-            line = self._widget_focused[2]
-            line.points = points
-        else:
-            from kivy.graphics import Color, Line
-            with widget.canvas.after:
-                color = Color(.42, .62, .65)
-                line = Line(points=points, close=True, width=2.)
-            self._widget_focused = [widget, color, line]
-
         self.root.ui_creator.playground.clicked = True
         self.root.on_show_edit()
+        
+        adorner_factory = get_adorner_for(widget)
+        if self._adorner_factory is adorner_factory and self._adorner:
+            self._adorner.select(widget)
+        else:
+            if self._adorner and self._adorner.parent:
+                self._adorner.parent.remove_widget(self._adorner)
+            self._adorner_factory = adorner_factory
+            self._adorner = adorner_factory(target=widget, playground=self.root.ui_creator.playground)
+        
+        if self._adorner:
+            if self._adorner.parent:
+                self._adorner.parent.remove_widget(self._adorner)
+            self.root.ui_creator.adornment.add_widget(self._adorner)
+            
+            if touch:
+                self._adorner.on_touch_down(touch)
+    
