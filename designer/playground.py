@@ -394,6 +394,10 @@ class PlaygroundDragElement(BoxLayout):
         if self.parent:
             self.parent.remove_widget(self)
 
+        if self.child in self.children:
+            self.remove_widget(self.child)
+            self.widgettree.refresh()
+
         return True
 
 
