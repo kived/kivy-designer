@@ -50,3 +50,9 @@ class DesignerSandbox(Sandbox):
     @sandbox
     def _clock_sandbox_draw(self, dt):
         pass
+    
+    def on_touch_down(self, touch):
+        '''Prevent touches from being dispatched to sandbox children
+        '''
+        return False
+    
