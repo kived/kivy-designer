@@ -16,7 +16,7 @@ DESIGNER_CONFIG_FILE_NAME = 'config.ini'
 
 
 # monkey backport! (https://github.com/kivy/kivy/pull/2288)
-if not hasattr(ConfigParser, 'upgrade'):
+if not hasattr(ConfigParser, 'update_config'):
     try:
         from ConfigParser import ConfigParser as PythonConfigParser
     except ImportError:
@@ -31,7 +31,7 @@ if not hasattr(ConfigParser, 'upgrade'):
             self.setdefaults(section, dict(pcp.items(section)))
         self.write()
     
-    ConfigParser.upgrade = upgrade
+    ConfigParser.update_config = upgrade
 
 class DesignerSettings(Settings):
     '''Subclass of :class:`kivy.uix.settings.Settings` responsible for
@@ -59,7 +59,7 @@ class DesignerSettings(Settings):
                             DESIGNER_CONFIG)
 
         self.config_parser.read(DESIGNER_CONFIG)
-        self.config_parser.upgrade(DEFAULT_CONFIG)
+        self.config_parser.update_config(DEFAULT_CONFIG)
         self.add_json_panel('Kivy Designer Settings', self.config_parser,
                             os.path.join(_dir, 'designer', 'settings', 'designer_settings.json'))
 

@@ -2,6 +2,10 @@
    module of Kivy Designer.
 '''
 
+__all__ = ['get_indent_str', 'get_line_end_pos', 'get_line_start_pos',
+           'get_indent_level', 'get_indentation', 'get_kivy_designer_dir',
+           'BoxLayout', 'resize_widget']
+
 import os
 
 from kivy.app import App
@@ -82,3 +86,121 @@ def get_kivy_designer_dir():
     if not os.path.exists(user_dir):
         os.makedirs(user_dir)
     return user_dir
+
+
+class BoxLayout(object):
+    @classmethod
+    def widget_position(cls, widget, layout):
+        layout_size = len(layout.children)
+        layout_pos = layout.children.index(widget)
+        at_front = layout_pos == (layout_size - 1)
+        at_end = layout_pos == 0
+        return {
+            'layout_size': layout_size,
+            'layout_pos': layout_pos,
+            'at_front': at_front,
+            'at_end': at_end
+        }
+
+
+def _resize(widget, size, size_prop, size_hint_prop):
+    cur_size_hint = getattr(widget, size_hint_prop)
+
+    if cur_size_hint is None:
+        setattr(widget, size_prop, size)
+    else:
+        cur_size = getattr(widget, size_prop)
+        if cur_size_hint < 0.001:
+            setattr(widget, size_hint_prop, 1)
+            widget.parent.do_layout()
+            cur_size = getattr(widget, size_prop)
+        ratio = float(size) / cur_size
+        size_hint = max(0.001, cur_size_hint * ratio)
+        setattr(widget, size_hint_prop, size_hint)
+
+
+def resize_widget(widget, width=None, height=None):
+    if width is not None:
+        _resize(widget, width, 'width', 'size_hint_x')
+
+    if height is not None:
+        _resize(widget, height, 'height', 'size_hint_y')
+    
+    widget.parent.do_layout()
+
+def move_widget(widget, x=None, y=None):
+    hint = widget.pos_hint.copy()
+    if hint:
+        parent = widget.parent
+        # (x, y) = widget.to_parent(x, y, relative=True)
+        if y is not None:
+            if 'top' in hint:
+                hint['top'] = (y + widget.height) / parent.height
+            elif 'center_y' in hint:
+                hint['center_y'] = (y + widget.height / 2.) / parent.height
+            else:
+                hint['y'] = y / parent.height
+        
+        if x is not None:
+            if 'right' in hint:
+                hint['right'] = (x + widget.width) / parent.width
+            elif 'center_x' in hint:
+                hint['center_x'] = (x + widget.width / 2.) / parent.width
+            else:
+                hint['x'] = x / parent.width
+        widget.pos_hint = hint
+    else:
+        if x is not None:
+            widget.x = x
+        if y is not None:
+            widget.y = y
+
+
+def _anchor(widget, hint, begin, center, end, size):
+    pos_hint = widget.pos_hint
+    if hint and hint not in pos_hint:
+        widget_pos = getattr(widget, begin)
+        parent_size = getattr(widget.parent, size)
+        if hint == begin:
+            if end in pos_hint:
+                pos_hint[begin] = 1.0 - pos_hint[end]
+                del pos_hint[end]
+            elif center in pos_hint:
+                pos_hint[begin] = pos_hint[center] + 0.5
+                del pos_hint[center]
+            else:
+                pos_hint[begin] = widget_pos / parent_size
+        elif hint == end:
+            if begin in pos_hint:
+                pos_hint[end] = 1.0 - pos_hint[begin]
+                del pos_hint[begin]
+            elif center in pos_hint:
+                pos_hint[end] = 1.5 - pos_hint[center]
+                del pos_hint[center]
+            else:
+                pos_hint[end] = 1.0 - widget_pos / parent_size
+        elif hint == center:
+            if begin in pos_hint:
+                pos_hint[center] = pos_hint[begin] - 0.5
+                del pos_hint[begin]
+            elif end in pos_hint:
+                pos_hint[center] = 0.5 - pos_hint[end]
+            else:
+                pos_hint[center] = widget_pos / parent_size - 0.5
+        widget.pos_hint = pos_hint
+
+
+def anchor_widget(widget, hint_x=None, hint_y=None):
+    _anchor(widget, hint_x, 'x', 'center_x', 'right', 'width')
+    _anchor(widget, hint_y, 'y', 'center_y', 'top', 'height')
+
+
+def widget_contains(container, child):
+    '''Search recursively for child in container
+    '''
+    if container == child:
+        return True
+    for w in container.children:
+        if widget_contains(w, child):
+            return True
+    return False

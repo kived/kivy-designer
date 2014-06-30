@@ -6,7 +6,7 @@ import os
 import shutil
 import traceback
 
-kivy.require('1.4.1')
+kivy.require('1.8.0')
 from kivy.app import App
 from kivy.core.window import Window
 from kivy.uix.floatlayout import FloatLayout
@@ -46,7 +46,7 @@ from designer.new_dialog import NewProjectDialog, NEW_PROJECTS
 from designer.eventviewer import EventViewer
 from designer.uix.designer_action_items import DesignerActionButton
 from designer.help_dialog import HelpDialog, AboutDialog
-from designer.uix.adorner import get_adorner_for
+from designer.uix.adorner import Adorner
 
 NEW_PROJECT_DIR_NAME = 'new_proj'
 NEW_TEMPLATES_DIR = 'new_templates'
@@ -1204,10 +1204,10 @@ class DesignerApp(App):
         Factory.register('RecentFilesBox', module='designer.start_page')
         Factory.register('ContextMenu', module='designer.uix.contextual')
         Factory.register('PlaygroundSizeSelector', module='designer.uix.playground_size_selector')
+        Factory.register('InverseColor', module='designer.uix.inversecolor')
 
         self._widget_focused = None
         self._adorner = None
-        self._adorner_factory = None
         self.root = Designer()
         Clock.schedule_once(self._setup)
 
@@ -1255,7 +1255,8 @@ class DesignerApp(App):
                   self.root.ui_creator.propertyviewer.setter('widget'))
         self.bind(widget_focused=
                   self.root.ui_creator.eventviewer.setter('widget'))
-
+        
+        self._adorner = Adorner(playground=self.root.ui_creator.playground, adornment_layer=self.root.ui_creator.adornment)
         self.focus_widget(self.root.ui_creator.playground.root)
 
         self.create_kivy_designer_dir()
@@ -1303,8 +1304,7 @@ class DesignerApp(App):
         return container
 
     def focus_widget(self, widget, dt=None, touch=None, *largs):
-        '''Called when a widget is select in Playground. It will also draw
-           lines around focussed widget.
+        '''Called when a widget is select in Playground.
         '''
         self.widget_focused = widget
         self.root.ui_creator.widgettree.refresh()
@@ -1315,20 +1315,7 @@ class DesignerApp(App):
         self.root.ui_creator.playground.clicked = True
         self.root.on_show_edit()
         
-        adorner_factory = get_adorner_for(widget)
-        if self._adorner_factory is adorner_factory and self._adorner:
-            self._adorner.select(widget)
-        else:
-            if self._adorner and self._adorner.parent:
-                self._adorner.parent.remove_widget(self._adorner)
-            self._adorner_factory = adorner_factory
-            self._adorner = adorner_factory(target=widget, playground=self.root.ui_creator.playground)
-        
-        if self._adorner:
-            if self._adorner.parent:
-                self._adorner.parent.remove_widget(self._adorner)
-            self.root.ui_creator.adornment.add_widget(self._adorner)
-            
-            if touch:
-                self._adorner.on_touch_down(touch)
+        self._adorner.select(widget)
+        if touch:
+            self._adorner.on_touch_down(touch)
     

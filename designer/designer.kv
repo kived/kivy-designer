@@ -1082,7 +1082,7 @@
         height: '20pt'
         pos_hint: {'y': 0}
 
-<Adorner>:
+<AdornerBase>:
     # Corners
     BoxLayout:
         id: bottom_left
@@ -1165,8 +1165,8 @@
             height: self.minimum_height
             pos_hint: {'center_x': 0.5, 'center_y': 0.5}
     
-    FloatLayout:
-        id: center
+    InverseColor:
+        id: border_frame
         size_hint: None, None
         size: root.size
         pos: 0, 0
@@ -1178,6 +1178,12 @@
                 close: True
                 width: root.border_width
     
+    FloatLayout:
+        id: center
+        size_hint: None, None
+        size: root.size
+        pos: 0, 0
+    
 <AdornerButton>:
     size_hint: None, None
     opacity: 0 if self.disabled else (1 if self.hover else 0.25)
@@ -1185,6 +1191,7 @@
 <Handle>:
     size_hint: None, None
     size: 12, 12
+    opacity: 0 if self.disabled else 1
     canvas:
         Color:
             rgba: root.color
