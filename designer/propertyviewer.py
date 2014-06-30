@@ -171,6 +171,7 @@ class PropertyViewer(ScrollView):
     def __init__(self, **kwargs):
         super(PropertyViewer, self).__init__(**kwargs)
         self._label_cache = {}
+        self._prop_cache = {}
 
     def on_widget(self, instance, value):
         '''Default handler for 'on_widget'.
@@ -194,10 +195,11 @@ class PropertyViewer(ScrollView):
 
         add = self.prop_list.add_widget
         get_label = self._get_label
+        get_prop = self._get_prop
         props = value.properties().keys()
         props.sort()
         for prop in props:
-            ip = self.build_for(prop)
+            ip = get_prop(prop)
             if not ip:
                 continue
             add(get_label(prop))
@@ -209,6 +211,17 @@ class PropertyViewer(ScrollView):
         except KeyError:
             lbl = self._label_cache[prop] = PropertyLabel(text=prop)
             return lbl
+
+    def _get_prop(self, name):
+        try:
+            prop = self._prop_cache[(self.widget.__class__, name)]
+        except KeyError:
+            prop = self._prop_cache[(self.widget.__class__, name)] = self.build_for(name)
+        else:
+            if prop:
+                prop.propwidget = self.widget
+                prop.propname = name
+        return prop
 
     def build_for(self, name):
         '''To create :class:`~designer.propertyviewer.PropertyBoolean`

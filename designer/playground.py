@@ -119,7 +119,17 @@ class PlaygroundDragElement(BoxLayout):
         
         self.child.pos = self.pos
         self.child.size = self.size
-    
+
+    def passoff_to_adorner(self, local, touch):
+        self.on_touch_up(touch)
+        x, y = local
+        x -= self.child.width / 2.
+        y -= self.child.height / 2.
+        helpers.move_widget(self.child, x, y)
+        self.playground.dragging = False
+        touch.ud['adorner_passoff'] = True
+        App.get_running_app().focus_widget(self.child, touch=touch)
+
     def on_touch_move(self, touch):
         '''This is responsible for moving the drag element and showing where
            the widget it contains will be added.
@@ -239,14 +249,7 @@ class PlaygroundDragElement(BoxLayout):
                 self.target = target
         
             if adorner_passoff:
-                self.on_touch_up(touch)
-                x, y = local
-                x -= self.child.width / 2.
-                y -= self.child.height / 2.
-                helpers.move_widget(self.child, x, y)
-                self.playground.dragging = False
-                touch.ud['adorner_passoff'] = True
-                App.get_running_app().focus_widget(self.child, touch=touch)
+                self.passoff_to_adorner(local, touch)
         
         return True
 
