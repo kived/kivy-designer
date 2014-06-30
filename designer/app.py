@@ -47,7 +47,7 @@ from designer.new_dialog import NewProjectDialog, NEW_PROJECTS
 from designer.eventviewer import EventViewer
 from designer.uix.designer_action_items import DesignerActionButton
 from designer.help_dialog import HelpDialog, AboutDialog
-from designer.uix.adorner import get_adorner_for
+from designer.uix.adorner import Adorner
 
 NEW_PROJECT_DIR_NAME = 'new_proj'
 NEW_TEMPLATES_DIR = 'new_templates'
@@ -286,7 +286,7 @@ class Designer(FloatLayout):
         '''Event Handler called when Project is modified outside Kivy Designer
         '''
 
-        # To dispatch modified event only once for all files/folders of proj_dir
+        #To dispatch modified event only once for all files/folders of proj_dir
         if self._proj_modified_outside:
             return
 
@@ -306,7 +306,7 @@ class Designer(FloatLayout):
         '''Perform reload of project after it is modified
         '''
 
-        # Perform reload of project after it is modified
+        #Perform reload of project after it is modified
         self._popup.dismiss()
         self.project_watcher.allow_event_dispatch = False
         self._perform_open(self.project_loader.proj_dir)
@@ -638,12 +638,12 @@ class Designer(FloatLayout):
 
                     self.designer_content.toolbox.add_custom()
 
-                # to test listview
-                # root_wigdet = None
+                #to test listview
+                #root_wigdet = None
                 root_wigdet = self.project_loader.get_root_widget()
 
                 if not root_wigdet:
-                    # Show list box showing widgets
+                    #Show list box showing widgets
                     self._select_class = SelectClass(
                         self.project_loader.class_rules)
 
@@ -665,7 +665,7 @@ class Designer(FloatLayout):
                         self.project_loader.get_full_str()
 
                 self.recent_manager.add_file(file_path)
-                # Record everything for later use
+                #Record everything for later use
                 self.project_loader.record()
                 self.designer_content.update_tree_view(self.project_loader)
                 self._add_designer_content()
@@ -1282,10 +1282,10 @@ class DesignerApp(App):
         Factory.register('ContextMenu', module='designer.uix.contextual')
         Factory.register('PlaygroundSizeSelector',
                          module='designer.uix.playground_size_selector')
+        Factory.register('InverseColor', module='designer.uix.inversecolor')
 
         self._widget_focused = None
         self._adorner = None
-        self._adorner_factory = None
         self.root = Designer()
         Clock.schedule_once(self._setup)
 
@@ -1336,6 +1336,7 @@ class DesignerApp(App):
             widget_focused=self.root.ui_creator.eventviewer.setter('widget')
         )
 
+        self._adorner = Adorner(playground=self.root.ui_creator.playground, adornment_layer=self.root.ui_creator.adornment)
         self.focus_widget(self.root.ui_creator.playground.root)
 
         self.create_kivy_designer_dir()
@@ -1383,8 +1384,7 @@ class DesignerApp(App):
         return container
 
     def focus_widget(self, widget, dt=None, touch=None, *largs):
-        '''Called when a widget is select in Playground. It will also draw
-           lines around focussed widget.
+        '''Called when a widget is select in Playground.
         '''
         self.widget_focused = widget
         self.root.ui_creator.widgettree.refresh()
@@ -1395,20 +1395,7 @@ class DesignerApp(App):
         self.root.ui_creator.playground.clicked = True
         self.root.on_show_edit()
         
-        adorner_factory = get_adorner_for(widget)
-        if self._adorner_factory is adorner_factory and self._adorner:
-            self._adorner.select(widget)
-        else:
-            if self._adorner and self._adorner.parent:
-                self._adorner.parent.remove_widget(self._adorner)
-            self._adorner_factory = adorner_factory
-            self._adorner = adorner_factory(target=widget, playground=self.root.ui_creator.playground)
-        
-        if self._adorner:
-            if self._adorner.parent:
-                self._adorner.parent.remove_widget(self._adorner)
-            self.root.ui_creator.adornment.add_widget(self._adorner)
-            
-            if touch:
-                self._adorner.on_touch_down(touch)
+        self._adorner.select(widget)
+        if touch:
+            self._adorner.on_touch_down(touch)
     
