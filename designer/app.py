@@ -1,8 +1,10 @@
+from kivy.resources import resource_add_path
+
 __all__ = ('DesignerApp', )
 
 import kivy
 import time
-import os
+import os, os.path
 import shutil
 import traceback
 
@@ -46,7 +48,7 @@ from designer.new_dialog import NewProjectDialog, NEW_PROJECTS
 from designer.eventviewer import EventViewer
 from designer.uix.designer_action_items import DesignerActionButton
 from designer.help_dialog import HelpDialog, AboutDialog
-from designer.uix.adorner import Adorner
+from designer.manipulator import Manipulator
 
 NEW_PROJECT_DIR_NAME = 'new_proj'
 NEW_TEMPLATES_DIR = 'new_templates'
@@ -1168,7 +1170,7 @@ class DesignerApp(App):
     '''Currently focused widget
     '''
     
-    _adorner = ObjectProperty(allownone=True)
+    manipulator = ObjectProperty(allownone=True)
     _adorner_factory = ObjectProperty(allownone=True)
 
     title = 'Kivy Designer'
@@ -1207,7 +1209,7 @@ class DesignerApp(App):
         Factory.register('InverseColor', module='designer.uix.inversecolor')
 
         self._widget_focused = None
-        self._adorner = None
+        self.manipulator = None
         self.root = Designer()
         Clock.schedule_once(self._setup)
 
@@ -1256,7 +1258,7 @@ class DesignerApp(App):
         self.bind(widget_focused=
                   self.root.ui_creator.eventviewer.setter('widget'))
         
-        self._adorner = Adorner(playground=self.root.ui_creator.playground, adornment_layer=self.root.ui_creator.adornment)
+        self.manipulator = Manipulator(playground=self.root.ui_creator.playground, adornment_layer=self.root.ui_creator.adornment)
         self.focus_widget(self.root.ui_creator.playground.root)
 
         self.create_kivy_designer_dir()
@@ -1315,7 +1317,5 @@ class DesignerApp(App):
         self.root.ui_creator.playground.clicked = True
         self.root.on_show_edit()
         
-        self._adorner.select(widget)
-        if touch:
-            self._adorner.on_touch_down(touch)
+        self.manipulator.select(widget, touch)
     

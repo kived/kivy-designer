@@ -84,6 +84,7 @@ class PlaygroundDragElement(BoxLayout):
         self.i = 0
         if self.child:
             self.first_pos = (self.child.pos[0], self.child.pos[1])
+            self.first_pos_hint = self.child.pos_hint.copy()
             self.first_size = (self.child.size[0], self.child.size[1])
             self.first_size_hint = (self.child.size_hint[0],
                                     self.child.size_hint[1])
@@ -114,7 +115,7 @@ class PlaygroundDragElement(BoxLayout):
         return False
     
     def do_layout(self, *largs):
-        if not self.child:
+        if not self.child or self.child.parent is not self:
             return
         
         self.child.pos = self.pos
@@ -200,6 +201,7 @@ class PlaygroundDragElement(BoxLayout):
                     self.can_place = target is not None
         
                 self.child.pos = self.first_pos
+                self.child.pos_hint = self.first_pos_hint.copy()
                 self.child.size_hint = self.first_size_hint
                 self.child.size = self.first_size
         
@@ -330,7 +332,7 @@ class PlaygroundDragElement(BoxLayout):
                                     index=index, target=target)
         
                         elif not self.can_place:
-                            self.playground.undo_dragging()
+                            self.playground.undo_dragging(touch)
         
                         self.playground.drag_operation = []
         
@@ -347,7 +349,7 @@ class PlaygroundDragElement(BoxLayout):
                                                                  target)
         
                 elif self.drag_type == 'dragndrop':
-                    self.playground.undo_dragging()
+                    self.playground.undo_dragging(touch)
         
                 self.target = None
         
@@ -424,12 +426,6 @@ class Playground(ScatterPlane):
     dragging = BooleanProperty(False)
     '''Specifies whether currently dragging is performed or not.
        :data:`dragging` is a :class:`~kivy.properties.BooleanProperty`
-    '''
-
-    drag_tolerance = NumericProperty(sp(12))
-    '''Pixel tolerance for popping dragged widget out of Playground and
-       into PlaygroundDragElement.
-       :data:`drag_tolerance` is a :class:`~kivy.properties.NumericProperty`
     '''
 
     __events__ = ('on_show_edit',)
@@ -554,6 +550,7 @@ class Playground(ScatterPlane):
         else:
             with self.sandbox:
                 if extra_args and self.from_drag:
+                    print 'drag_wigdet!', widget, target, extra_args
                     self.drag_wigdet(widget, target, extra_args=extra_args)
 
                 else:
@@ -899,9 +896,15 @@ class Playground(ScatterPlane):
     
         return super(Playground, self).on_touch_up(touch)
 
-    def undo_dragging(self):
+    def undo_dragging(self, touch=None):
         '''To undo the last dragging operation if it has not been completed.
         '''
+        if touch:
+            op = touch.ud.get('m_op', None)
+            if op:
+                op.do_undo()
+                return
+        
         if not self.drag_operation:
             return
 
@@ -919,8 +922,8 @@ class Playground(ScatterPlane):
         '''This function will create PlaygroundDragElement
            which will start dragging currently selected widget.
         '''
-        if not self.dragging and not self.drag_operation and\
-                self.selected_widget and self.touch_pos:
+        if (not self.dragging and # not self.drag_operation and\
+                self.selected_widget and self.touch_pos):
             drag_widget = self.selected_widget
             self._widget_x, self._widget_y = drag_widget.x, drag_widget.y
             index = self.selected_widget.parent.children.index(drag_widget)
