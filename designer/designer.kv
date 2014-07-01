@@ -1083,87 +1083,17 @@
         pos_hint: {'y': 0}
 
 <AdornerBase>:
-    # Corners
-    BoxLayout:
-        id: bottom_left
-        size_hint: None, None
+    next_button: next_button
+    button_area: buttons
+    center_area: center
+    
+    AdornerImageButton:
+        id: next_button
+        on_press: root.manipulator.next_adorner()
+        disabled: not (len(root.manipulator.active_adorners) > 1)
         size: root.button_size
-        top: 0
-        right: 0
-    
-    BoxLayout:
-        id: bottom_right
-        size_hint: None, None
-        size: root.button_size
-        top: 0
-        x: root.width
-    
-    BoxLayout:
-        id: top_left
-        size_hint: None, None
-        size: root.button_size
-        y: root.height
-        right: 0
-    
-    BoxLayout:
-        id: top_right
-        size_hint: None, None
-        size: root.button_size
-        y: root.height
-        x: root.width
-    
-    # Sides
-    FloatLayout:
-        size_hint: None, None
-        size: (root.width, root.button_width)
-        top: 0
-        x: 0
-        StackLayout:
-            id: bottom
-            orientation: 'rl-tb'
-            padding: root.handle_width, 0
-            size_hint: None, 1
-            width: self.minimum_width
-            pos_hint: {'center_x': 0.5, 'center_y': 0.5}
-    
-    FloatLayout:
-        size_hint: None, None
-        size: (root.width, root.button_width)
-        y: root.height
-        x: 0
-        StackLayout:
-            id: top
-            orientation: 'lr-tb'
-            padding: root.handle_width, 0
-            size_hint: None, 1
-            width: self.minimum_width
-            pos_hint: {'center_x': 0.5, 'center_y': 0.5}
-    
-    FloatLayout:
-        size_hint: None, None
-        size: (root.button_width, root.height)
-        y: 0
-        right: 0
-        StackLayout:
-            id: left
-            orientation: 'tb-lr'
-            padding: 0, root.handle_width
-            size_hint: 1, None
-            height: self.minimum_height
-            pos_hint: {'center_x': 0.5, 'center_y': 0.5}
-    
-    FloatLayout:
-        size_hint: None, None
-        size: (root.button_width, root.height)
-        y: 0
-        x: root.width
-        StackLayout:
-            id: right
-            orientation: 'bt-rl'
-            padding: 0, root.handle_width
-            size_hint: 1, None
-            height: self.minimum_height
-            pos_hint: {'center_x': 0.5, 'center_y': 0.5}
+        pos_hint: {'x': 1, 'y': 1}
+        source: root.icon
     
     InverseColor:
         id: border_frame
@@ -1184,9 +1114,21 @@
         size: root.size
         pos: 0, 0
     
+    FloatLayout:
+        id: buttons
+        size_hint: None, None
+        size: root.size
+        pos: 0, 0
+    
 <AdornerButton>:
     size_hint: None, None
     opacity: 0 if self.disabled else (1 if self.hover else 0.25)
+
+<AdornerImageButton>:
+    Image:
+        source: root.source
+        pos: root.pos
+        size: root.size
 
 <Handle>:
     size_hint: None, None
@@ -1198,4 +1140,3 @@
         Rectangle:
             pos: self.pos
             size: self.size
-

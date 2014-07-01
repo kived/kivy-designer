@@ -103,6 +103,15 @@ class BoxLayout(object):
         }
 
 
+def get_alignment(widget):
+    pos_hint = widget.pos_hint
+    halign = 'left' if 'x' in pos_hint else (
+        'right' if 'right' in pos_hint else ('center' if 'center_x' in pos_hint else 'free'))
+    valign = 'top' if 'top' in pos_hint else (
+        'bottom' if 'y' in pos_hint else ('middle' if 'center_y' in pos_hint else 'free'))
+    return halign, valign
+
+
 def _resize(widget, size, size_prop, size_hint_prop):
     cur_size_hint = getattr(widget, size_hint_prop)
 
@@ -157,36 +166,30 @@ def move_widget(widget, x=None, y=None):
 
 
 def _anchor(widget, hint, begin, center, end, size):
-    pos_hint = widget.pos_hint
+    pos_hint = widget.pos_hint.copy()
     if hint and hint not in pos_hint:
-        widget_pos = getattr(widget, begin)
+        widget_begin = getattr(widget, begin)
+        widget_center = getattr(widget, center)
+        widget_end = getattr(widget, end)
         parent_size = getattr(widget.parent, size)
+        
+        new_hint = {}
+        
         if hint == begin:
-            if end in pos_hint:
-                pos_hint[begin] = 1.0 - pos_hint[end]
-                del pos_hint[end]
-            elif center in pos_hint:
-                pos_hint[begin] = pos_hint[center] + 0.5
-                del pos_hint[center]
-            else:
-                pos_hint[begin] = widget_pos / parent_size
-        elif hint == end:
-            if begin in pos_hint:
-                pos_hint[end] = 1.0 - pos_hint[begin]
-                del pos_hint[begin]
-            elif center in pos_hint:
-                pos_hint[end] = 1.5 - pos_hint[center]
-                del pos_hint[center]
-            else:
-                pos_hint[end] = 1.0 - widget_pos / parent_size
+            new_hint[begin] = widget_begin / parent_size
         elif hint == center:
-            if begin in pos_hint:
-                pos_hint[center] = pos_hint[begin] - 0.5
-                del pos_hint[begin]
-            elif end in pos_hint:
-                pos_hint[center] = 0.5 - pos_hint[end]
-            else:
-                pos_hint[center] = widget_pos / parent_size - 0.5
+            new_hint[center] = widget_center / parent_size
+        elif hint == end:
+            new_hint[end] = widget_end / parent_size
+        
+        if begin in pos_hint:
+            del pos_hint[begin]
+        if center in pos_hint:
+            del pos_hint[center]
+        if end in pos_hint:
+            del pos_hint[end]
+        
+        pos_hint.update(new_hint)
         widget.pos_hint = pos_hint
 
 

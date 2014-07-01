@@ -3,3 +3,7 @@
     Label:
         # this is the only auto provided widget, you should replace it with your own app structure.
         text: 'Hello World !!'
+    Button:
+        text: 'Button'
+    Label:
+        text: 'Another label'
