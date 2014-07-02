@@ -616,7 +616,7 @@
     splitter_widget_tree: splitter_widget_tree
     propertyviewer: propertyviewer
     playground: playground
-    adornment: adornment
+    manipulator: manipulator
     widgettree: widgettree
     error_console: error_console
     kivy_console: kivy_console
@@ -662,9 +662,10 @@
                         size: self.size
                 on_show_edit: root.on_show_edit()
 
-            FloatLayout:
-                id: adornment
+            Manipulator:
+                id: manipulator
                 size_hint: 1, 1
+                playground: playground
 
             Splitter:
                 id: splitter_kv
@@ -1140,3 +1141,11 @@
         Rectangle:
             pos: self.pos
             size: self.size
+
+<PlaygroundDragAdorner>:
+    canvas.before:
+        Color:
+            rgba: 1, 1, 1, 0.5
+        Rectangle:
+            size: root.size
+            pos: 0, 0

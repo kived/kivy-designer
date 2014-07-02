@@ -1338,7 +1338,8 @@ class DesignerApp(App):
             widget_focused=self.root.ui_creator.eventviewer.setter('widget')
         )
 
-        self.manipulator = Manipulator(playground=self.root.ui_creator.playground, adornment_layer=self.root.ui_creator.adornment)
+        #self.manipulator = Manipulator(playground=self.root.ui_creator.playground, adornment_layer=self.root.ui_creator.adornment)
+        self.manipulator = self.root.ui_creator.manipulator
         self.focus_widget(self.root.ui_creator.playground.root)
 
         self.create_kivy_designer_dir()

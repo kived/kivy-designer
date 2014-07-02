@@ -24,9 +24,9 @@ class UICreator(FloatLayout):
        :data:`playground` is an :class:`~kivy.properties.ObjectProperty`
     '''
 
-    adornment = ObjectProperty(None)
-    '''Reference to the adornment layer.
-       :data:`adornment` is an :class:`~kivy.properties.ObjectProperty`
+    manipulator = ObjectProperty(None)
+    '''Reference to the :class:`~designer.manipulator.Manipulator` instance.
+       :data:`manipulator` is an :class:`~kivy.properties.ObjectProperty`
     '''
 
     widgettree = ObjectProperty(None)
