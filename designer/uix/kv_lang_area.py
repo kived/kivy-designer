@@ -1,8 +1,9 @@
 import re
+from designer.common import widgets
 
 from kivy.uix.codeinput import CodeInput
 from kivy.properties import BooleanProperty, StringProperty,\
-    NumericProperty, OptionProperty, ObjectProperty
+    NumericProperty, OptionProperty, ObjectProperty, Property
 from kivy.app import App
 from kivy.lang import Builder
 from kivy.factory import Factory
@@ -775,3 +776,44 @@ class KVLangArea(DesignerCodeInput):
             lineno += 1
 
         return lineno - 1
+    
+    # def refresh(self, root):
+    # 	self.text = self._build_kv(root, root=True)
+    # 
+    # def _build_kv(self, widget, root=False):
+    # 	cls = type(widget)
+    # 	text = ('%s:' if not root else '<%s>:') % cls.__name__
+    # 	
+    # 	# properties
+    # 	self._cls_cache = getattr(self, '_cls_cache', {})
+    # 	if cls in self._cls_cache:
+    # 		obj = self._cls_cache[cls]
+    # 	else:
+    # 		obj = self._cls_cache[cls] = cls()
+    # 	
+    # 	for name in dir(cls):
+    # 		attr = getattr(cls, name, None)
+    # 		if isinstance(attr, Property) and not isinstance(attr, ObjectProperty):
+    # 			try:
+    # 				default_value = getattr(obj, name)
+    # 				widget_value = getattr(widget, name, None)
+    # 				if widget_value != default_value:
+    # 					text = '%s\n    %s: %s' % (text, name, repr(widget_value))
+    # 			except Exception:
+    # 				pass
+    # 	
+    # 	complex = False
+    # 	for _widget in widgets:
+    # 		if _widget[0] == cls.__name__ and \
+    # 						_widget[1] == 'complex':
+    # 			complex = True
+    # 	
+    # 	if not complex:
+    # 		for child in widget.children:
+    # 			child_text = self._build_kv(child)
+    # 			text += '\n    ' + child_text.replace('\n', '\n    ')
+    # 	
+    # 	if text[-1] != '\n':
+    # 		text += '\n'
+    # 	return text
+    

@@ -3,19 +3,17 @@ from kivy.properties import ObjectProperty, ListProperty, BoundedNumericProperty
     OptionProperty, StringProperty
 from kivy.clock import Clock
 from kivy.core.window import Window
-from kivy.event import EventDispatcher
 from kivy.metrics import sp
 from kivy.uix.boxlayout import BoxLayout
 from kivy.uix.button import Button
 from kivy.uix.floatlayout import FloatLayout
-from kivy.uix.image import Image
 from kivy.uix.relativelayout import RelativeLayout
 from kivy.uix.sandbox import SandboxContent
+from kivy.app import App
 
 from designer.uix.inversecolor import InverseColor
 from designer import helper_functions as helpers
 from kivy.uix.togglebutton import ToggleButton
-from kivy.uix.behaviors import ButtonBehavior
 
 
 try:
@@ -57,6 +55,13 @@ class AdornerToggleButton(HoverBehavior, ToggleButton):
 
 class AdornerImageButton(AdornerButton):
     source = StringProperty('')
+
+
+class Handle(InverseColor):
+    color = ListProperty([0.6, 0.5, 0.9, 0.8])
+
+    move_vertical = OptionProperty('none', options=('none', 'up', 'down'))
+    move_horizontal = OptionProperty('none', options=('none', 'left', 'right'))
 
 
 class AdornerBase(RelativeLayout):
@@ -176,7 +181,9 @@ class AdornerBase(RelativeLayout):
         if self.target:
             t = self.target
             scale = self.playground.scale
-            pos = self.playground.to_local(*t.to_window(t.pos[0] * scale, t.pos[1] * scale))
+            pos = self.playground.to_widget(*t.to_window(t.pos[0] * scale, t.pos[1] * scale))
+            # self.count = getattr(self, 'count', 0) + 1
+            # pos = self.manipulator.to_widget(*t.to_window(*t.pos))
             self.pos = pos
             self.size = t.width * scale, t.height * scale
             self._adorn()
@@ -238,7 +245,11 @@ class MovingAdorner(AdornerBase):
                 if self.do_reparent and (not self.target.parent.collide_point(*pos) or (
                         not self.do_translate and not self.target.collide_point(*pos))):
                     self.finish_move(center, touch)
-                    self.playground.prepare_widget_dragging(touch, delay=0)
+                    #self.playground.prepare_widget_dragging(touch, delay=0)
+                    touch.push()
+                    touch.apply_transform_2d(center.to_window)
+                    self.manipulator.start_reparent(self.target, touch)
+                    touch.pop()
                 elif self.do_translate:
                     helpers.move_widget(self.target, x=self.target.x + dx, y=self.target.y + dy)
 
@@ -254,7 +265,7 @@ class MovingAdorner(AdornerBase):
     
     def on_center_touch_up(self, center, touch):
         if self.finish_move(center, touch):
-            self.manipulator.finish_move(touch)
+            # self.manipulator.finish_move(touch)
             return True
     
 class RootAdorner(AdornerBase):
@@ -262,7 +273,6 @@ class RootAdorner(AdornerBase):
     
     def __init__(self, **kwargs):
         kwargs['border_color'] = 0, 0, 0, 0
-        kwargs['do_reparent'] = False
         super(RootAdorner, self).__init__(**kwargs)
     
     @classmethod
@@ -273,10 +283,34 @@ class PlaygroundDragAdorner(AdornerBase):
     exclusive = True
 
     def __init__(self, **kwargs):
-        kwargs['do_reparent'] = False
-        kwargs['do_translate'] = False
+        # self.handle = Handle(size=self.handle_size, opacity=0, pos_hint={'center_x': 0.5, 'center_y': -0.2})
         super(PlaygroundDragAdorner, self).__init__(**kwargs)
         self.ids['border_frame'].opacity = 0
+        # self.center_area.add_widget(self.handle)
+        # self.handle.bind(on_touch_down=self._start_dragging)
+    
+    # def _adorn(self):
+    # 	self.handle.center_x = self.width / 2.
+    # 	self.handle.y = -20
+    
+    # def _start_dragging(self, touch):
+    # 	print 'grab touch'
+    # 	touch.grab(self)
+    
+    def on_touch_move(self, touch):
+        if touch.grab_current is self:
+            self.playground.sandbox.error_active = True
+            with self.playground.sandbox:
+                self.target.parent.center_x = touch.x
+                self.target.parent.y = touch.y + 20
+    
+    def _update(self, *_):
+        if self.target:
+            self.pos = self.manipulator.to_widget(*self.target.to_window(*self.target.pos))
+            self.size = self.target.size
+            self._adorn()
+        else:
+            self.size = 0, 0
     
     @classmethod
     def applies_to(cls, widget):
@@ -346,12 +380,6 @@ class BlockAdorner(MovingAdorner):
     def applies_to(cls, widget):
         return isinstance(widget.parent, BoxLayout)
 
-class Handle(InverseColor):
-    color = ListProperty([0.6, 0.5, 0.9, 0.8])
-    
-    move_vertical = OptionProperty('none', options=('none', 'up', 'down'))
-    move_horizontal = OptionProperty('none', options=('none', 'left', 'right'))
-
 class ResizeAdorner(MovingAdorner):
     def __init__(self, **kwargs):
         self.htop = Handle(move_vertical='up', size=self.handle_size, color=self.handle_color)
@@ -395,6 +423,7 @@ class ResizeAdorner(MovingAdorner):
             touch.grab(self)
             self.resizing = handle
             self.moving_pos = self.playground.to_local(*handle.to_window(*touch.pos))
+            self.manipulator.start_resize(self.target, touch)
             return True
     
     def on_touch_move(self, touch):
