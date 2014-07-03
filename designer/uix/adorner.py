@@ -1,6 +1,7 @@
 from functools import partial
 from kivy.properties import ObjectProperty, ListProperty, BoundedNumericProperty, AliasProperty, BooleanProperty, \
     OptionProperty, StringProperty
+from designer.playground import PlaygroundDragElement
 from kivy.clock import Clock
 from kivy.core.window import Window
 from kivy.metrics import sp
@@ -13,6 +14,8 @@ from kivy.app import App
 
 from designer.uix.inversecolor import InverseColor
 from designer import helper_functions as helpers
+from kivy.uix.screenmanager import ScreenManager, Screen
+from kivy.uix.tabbedpanel import TabbedPanel
 from kivy.uix.togglebutton import ToggleButton
 
 
@@ -283,26 +286,100 @@ class PlaygroundDragAdorner(AdornerBase):
     exclusive = True
 
     def __init__(self, **kwargs):
-        # self.handle = Handle(size=self.handle_size, opacity=0, pos_hint={'center_x': 0.5, 'center_y': -0.2})
         super(PlaygroundDragAdorner, self).__init__(**kwargs)
         self.ids['border_frame'].opacity = 0
-        # self.center_area.add_widget(self.handle)
-        # self.handle.bind(on_touch_down=self._start_dragging)
-    
-    # def _adorn(self):
-    # 	self.handle.center_x = self.width / 2.
-    # 	self.handle.y = -20
-    
-    # def _start_dragging(self, touch):
-    # 	print 'grab touch'
-    # 	touch.grab(self)
     
     def on_touch_move(self, touch):
         if touch.grab_current is self:
             self.playground.sandbox.error_active = True
+            dragelem = self.target.parent
+            dropelem = None
+            
+            if not isinstance(dragelem, PlaygroundDragElement):
+                return False
+            
+            reparented = False
+            
             with self.playground.sandbox:
-                self.target.parent.center_x = touch.x
-                self.target.parent.y = touch.y + 20
+                dragelem.center_x = touch.x
+                dragelem.y = touch.y + 20
+                
+                local = self.playground.to_widget(*touch.pos)
+                is_intersecting_playground = self.playground.collide_point(*touch.pos)
+                if is_intersecting_playground:
+                    dropelem = self.playground.try_place_widget(self.target, touch.x, touch.y)
+                else:
+                    pass
+                
+                if helpers.widget_contains(self.target, dropelem):
+                    return True
+                
+                def add_widget(widget, index=0, real=False):
+                    if self.target.parent:
+                        if dropelem:
+                            if isinstance(dropelem, ScreenManager):
+                                if isinstance(self.target, Screen):
+                                    dropelem.remove_widget(self.target)
+                                dropelem.real_remove_widget(self.target)
+                            elif not isinstance(dropelem, TabbedPanel):
+                                dropelem.remove_widget(self.target)
+                    
+                        if self.target.parent:
+                            self.target.parent.remove_widget(self.target)
+                    
+                    if real:
+                        widget.real_add_widget(self.target, index=index)
+                    else:
+                        widget.add_widget(self.target, index=index)
+                
+                if dragelem.drag_type == 'dragndrop':
+                    can_place = dropelem == dragelem.drag_parent
+                else:
+                    can_place = dropelem is not None
+                
+                self.target.pos = dragelem.first_pos
+                self.target.pos_hint = dragelem.first_pos_hint.copy()
+                self.target.size_hint = dragelem.first_size_hint
+                self.target.size = dragelem.first_size
+                
+                if dropelem:
+                    if hasattr(dropelem, 'do_layout'):
+                        dropelem.do_layout()
+                    if can_place and dragelem.drag_type == 'dragndrop':
+                        if is_intersecting_playground:
+                            target = self.playground.find_target(local[0], local[1], self.playground.root)
+                            if target.parent:
+                                _parent = target.parent
+                                index = _parent.children.index(target)
+                                add_widget(dropelem, index)
+                                reparented = True
+                        else:
+                            pass
+                    elif not can_place and self.target.parent != dragelem:
+                        self.target.pos = 0, 0
+                        self.target.size_hint = 1, 1
+                        add_widget(dragelem)
+                    elif can_place and dragelem.drag_type != 'dragndrop':
+                        if isinstance(dropelem, ScreenManager):
+                            add_widget(dropelem, real=True)
+                        else:
+                            add_widget(dropelem)
+                elif not can_place and self.target.parent != dragelem:
+                    self.target.pos = 0, 0
+                    self.target.size_hint = 1, 1
+                    add_widget(dragelem)
+            
+            if reparented:
+                self.on_touch_up(touch)
+                x = local[0] - self.target.width / 2.
+                y = local[1] - self.target.height / 2.
+                helpers.move_widget(self.target, x, y)
+                touch.ud['adorner_passoff'] = True
+                dragelem.parent.remove_widget(dragelem)
+                # touch.apply_transform_2d(lambda x, y: (x / self.playground.scale, y / self.playground.scale))
+                App.get_running_app().focus_widget(self.target, touch=touch)
+            
+            return True
     
     def _update(self, *_):
         if self.target:
@@ -604,30 +681,6 @@ class AnchorAdorner(AdornerBase):
             alignbtn.state = 'down'
             self.halign = halign
             self.valign = valign
-
-    # def _adorn(self):
-    # 	layout = self.target.parent
-    # 	center = self.ids['center']
-    # 
-    # 	def enable(handles, enabled):
-    # 		def do_enable(h):
-    # 			if h not in center.children:
-    # 				if h.parent:
-    # 					h.parent.remove_widget(h)
-    # 				center.add_widget(h)
-    # 
-    # 		def do_disable(h):
-    # 			if h in center.children:
-    # 				center.remove_widget(h)
-    # 
-    # 		do = do_enable if enabled else do_disable
-    # 		for handle in handles:
-    # 			do(handle)
-    # 	
-    # 	enable((self.atl, self.atop, self.atr, self.aleft, self.acenter, self.aright, self.abl, self.abottom, self.abr, self.afree),
-    # 	       self.aenable.state == 'down')
-    # 
-    # 	super(AnchorAdorner, self)._adorn()
     
     @classmethod
     def applies_to(cls, widget):
