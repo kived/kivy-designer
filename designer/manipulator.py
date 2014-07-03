@@ -133,6 +133,7 @@ class Manipulator(FloatLayout):
 
     def select(self, widget, touch=None):
         self.target = widget
+        self.current_adorner.select(self.target)
         if touch:
             self.on_touch_down(touch)
 
@@ -145,8 +146,8 @@ class Manipulator(FloatLayout):
         if adorners != self.active_adorners:
             self.active_adorners = adorners
             self.current_adorner = self.active_adorners[0]
-        else:
-            self.current_adorner.select(self.target)
+        # else:
+        # 	self.current_adorner.select(self.target)
     
     def next_adorner(self):
         index = self.active_adorners.index(self.current_adorner) + 1
@@ -204,10 +205,11 @@ class Manipulator(FloatLayout):
             # touch.push()
             # touch.apply_transform_2d(widget.to_window)
             # touch.apply_transform_2d(self.to_widget)
+            drag_parent = widget.parent
             widget.parent.remove_widget(widget)
             dragelem = self.create_draggable(widget, touch)
             dragelem.drag_type = 'dragndrop'
-            dragelem.drag_parent = touch.ud['m_op']
+            dragelem.drag_parent = drag_parent
             # App.get_running_app().focus_widget(self.target, touch)
             touch.grab(self.current_adorner)
             # touch.pop()
