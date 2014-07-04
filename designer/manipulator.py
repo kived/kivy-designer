@@ -132,8 +132,10 @@ class Manipulator(FloatLayout):
         self.current_operation = None
 
     def select(self, widget, touch=None):
-        self.target = widget
-        self.current_adorner.select(self.target)
+        if self.target is widget:
+            self.current_adorner.select(self.target)
+        else:
+            self.target = widget
         if touch:
             self.on_touch_down(touch)
 
@@ -146,6 +148,7 @@ class Manipulator(FloatLayout):
         if adorners != self.active_adorners:
             self.active_adorners = adorners
             self.current_adorner = self.active_adorners[0]
+        self.current_adorner.select(self.target)
         # else:
         # 	self.current_adorner.select(self.target)
     
@@ -212,6 +215,9 @@ class Manipulator(FloatLayout):
             dragelem.drag_parent = drag_parent
             # App.get_running_app().focus_widget(self.target, touch)
             touch.grab(self.current_adorner)
+            touch.grab_current = self.current_adorner
+            self.current_adorner.update()
+            self.current_adorner.on_touch_move(touch)
             # touch.pop()
     
     def create_draggable(self, widget, touch):
