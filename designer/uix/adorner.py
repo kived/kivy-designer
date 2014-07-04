@@ -284,7 +284,9 @@ class RootAdorner(AdornerBase):
 
 class PlaygroundDragAdorner(AdornerBase):
     exclusive = True
-
+    
+    dragelem = ObjectProperty(allownone=True)
+    
     def __init__(self, **kwargs):
         super(PlaygroundDragAdorner, self).__init__(**kwargs)
         self.ids['border_frame'].opacity = 0
@@ -292,17 +294,19 @@ class PlaygroundDragAdorner(AdornerBase):
     def on_touch_move(self, touch):
         if touch.grab_current is self:
             self.playground.sandbox.error_active = True
-            dragelem = self.target.parent
             dropelem = None
             
-            if not isinstance(dragelem, PlaygroundDragElement):
+            if isinstance(self.target.parent, PlaygroundDragElement):
+                self.dragelem = self.target.parent
+            
+            if self.target.parent is not self.dragelem:
                 return False
             
             reparented = False
             
             with self.playground.sandbox:
-                dragelem.center_x = touch.x
-                dragelem.y = touch.y + 20
+                self.dragelem.center_x = touch.x
+                self.dragelem.y = touch.y + 20
                 
                 local = self.playground.to_widget(*touch.pos)
                 is_intersecting_playground = self.playground.collide_point(*touch.pos)
@@ -332,20 +336,20 @@ class PlaygroundDragAdorner(AdornerBase):
                     else:
                         widget.add_widget(self.target, index=index)
                 
-                if dragelem.drag_type == 'dragndrop':
-                    can_place = dropelem == dragelem.drag_parent
+                if self.dragelem.drag_type == 'dragndrop':
+                    can_place = dropelem == self.dragelem.drag_parent
                 else:
                     can_place = dropelem is not None
                 
-                self.target.pos = dragelem.first_pos
-                self.target.pos_hint = dragelem.first_pos_hint.copy()
-                self.target.size_hint = dragelem.first_size_hint
-                self.target.size = dragelem.first_size
+                self.target.pos = self.dragelem.first_pos
+                self.target.pos_hint = self.dragelem.first_pos_hint.copy()
+                self.target.size_hint = self.dragelem.first_size_hint
+                self.target.size = self.dragelem.first_size
                 
                 if dropelem:
                     if hasattr(dropelem, 'do_layout'):
                         dropelem.do_layout()
-                    if can_place and dragelem.drag_type == 'dragndrop':
+                    if can_place and self.dragelem.drag_type == 'dragndrop':
                         if is_intersecting_playground:
                             target = self.playground.find_target(local[0], local[1], self.playground.root)
                             if target.parent:
@@ -355,19 +359,19 @@ class PlaygroundDragAdorner(AdornerBase):
                                 reparented = True
                         else:
                             pass
-                    elif not can_place and self.target.parent != dragelem:
+                    elif not can_place and self.target.parent != self.dragelem:
                         self.target.pos = 0, 0
                         self.target.size_hint = 1, 1
-                        add_widget(dragelem)
-                    elif can_place and dragelem.drag_type != 'dragndrop':
+                        add_widget(self.dragelem)
+                    elif can_place and self.dragelem.drag_type != 'dragndrop':
                         if isinstance(dropelem, ScreenManager):
                             add_widget(dropelem, real=True)
                         else:
                             add_widget(dropelem)
-                elif not can_place and self.target.parent != dragelem:
+                elif not can_place and self.target.parent != self.dragelem:
                     self.target.pos = 0, 0
                     self.target.size_hint = 1, 1
-                    add_widget(dragelem)
+                    add_widget(self.dragelem)
             
             if reparented:
                 self.on_touch_up(touch)
@@ -375,11 +379,81 @@ class PlaygroundDragAdorner(AdornerBase):
                 y = local[1] - self.target.height / 2.
                 helpers.move_widget(self.target, x, y)
                 touch.ud['adorner_passoff'] = True
-                dragelem.parent.remove_widget(dragelem)
-                # touch.apply_transform_2d(lambda x, y: (x / self.playground.scale, y / self.playground.scale))
+                #self.dragelem.parent.remove_widget(self.dragelem)
                 App.get_running_app().focus_widget(self.target, touch=touch)
             
             return True
+    
+    def on_touch_up(self, touch):
+        if touch.grab_current is self:
+            self.playground.sandbox.error_active = True
+            with self.playground.sandbox:
+                touch.ungrab(self)
+                widget_from = None
+                dropelem = None
+                local = self.playground.to_widget(*touch.pos)
+                is_intersecting_playground = self.playground.collide_point(*touch.pos)
+                if is_intersecting_playground:
+                    dropelem = self.playground.try_place_widget(self.target, touch.x, touch.y)
+                    widget_from = 'playground'
+                else:
+                    pass
+
+                if isinstance(self.target.parent, PlaygroundDragElement):
+                    self.dragelem = self.target.parent
+                
+                parent = None
+                if self.target.parent is not self.dragelem:
+                    parent = self.target.parent
+                elif not self.playground.root:
+                    parent = self.target.parent
+                
+                index = -1
+                
+                if self.dragelem.drag_type == 'dragndrop':
+                    can_place = dropelem == self.dragelem.drag_parent and parent is not None
+                else:
+                    can_place = dropelem is not None and parent is not None
+                
+                if dropelem:
+                    try:
+                        index = dropelem.children.index(self.target)
+                    except ValueError:
+                        pass
+                    
+                    dropelem.remove_widget(self.target)
+                    if isinstance(dropelem, ScreenManager):
+                        dropelem.real_remove_widget(self.target)
+                elif parent:
+                    index = parent.children.index(self.target)
+                    parent.remove_widget(self.target)
+                
+                if can_place or self.playground.root is None:
+                    target = self.target
+                    if self.dragelem.drag_type == 'dragndrop':
+                        if can_place and parent:
+                            if widget_from == 'playground':
+                                self.playground.place_widget(target, touch.x, touch.y, index=index)
+                            else:
+                                self.playground.place_widget(target, touch.x, touch.y, index=index, target=dropelem)
+                        elif not can_place:
+                            self.playground.undo_dragging(touch)
+                    else:
+                        if widget_from == 'playground':
+                            self.playground.place_widget(target, touch.x, touch.y)
+                        else:
+                            self.playground.add_widget_to_parent(type(target)(), dropelem)
+                elif self.dragelem.drag_type == 'dragndrop':
+                    self.playground.undo_dragging(touch)
+        
+        if self.dragelem.parent:
+            self.dragelem.parent.remove_widget(self.dragelem)
+        
+        if self.target in self.dragelem.children:
+            self.dragelem.remove_widget(self.target)
+            self.dragelem.widgettree.refresh()
+        
+        return True
     
     def _update(self, *_):
         if self.target:
@@ -388,6 +462,7 @@ class PlaygroundDragAdorner(AdornerBase):
             self._adorn()
         else:
             self.size = 0, 0
+            self.dragelem = None
     
     @classmethod
     def applies_to(cls, widget):
