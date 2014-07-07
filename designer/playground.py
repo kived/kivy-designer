@@ -945,30 +945,32 @@ class Playground(ScatterPlane):
             self.touch_pos = touch.pos
             Clock.schedule_once(self.start_widget_dragging, delay)
 
-    def on_touch_down(self, touch):
-        '''An override of ScatterPlane's on_touch_down.
-           Used to determine the current selected widget and also emits,
-           on_show_edit event.
-        '''
-
-        self.touch_pos = None
-        if super(ScatterPlane, self).collide_point(*touch.pos) and \
-                not self.keyboard:
-            win = EventLoop.window
-            self.keyboard = win.request_keyboard(self._keyboard_released, self)
-            self.keyboard.bind(on_key_down=self._on_keyboard_down)
-        
-        if self.selection_mode:
-            x, y = self.to_local(*touch.pos)
-            target = self.find_target(x, y, self.root)
-            if target:
-                self.selected_widget = target
-                App.get_running_app().focus_widget(target, touch=touch)
-                self.clicked = True
-                self.dispatch('on_show_edit', Playground)
-                return True
-
-        if self.parent.collide_point(*touch.pos):
-            super(Playground, self).on_touch_down(touch)
-
-        return False
+    # def on_touch_down(self, touch):
+    # 	'''An override of ScatterPlane's on_touch_down.
+    # 	   Used to determine the current selected widget and also emits,
+    # 	   on_show_edit event.
+    # 	'''
+    # 	
+    # 	raise RuntimeError()
+    # 
+    # 	self.touch_pos = None
+    # 	if super(ScatterPlane, self).collide_point(*touch.pos) and \
+    # 			not self.keyboard:
+    # 		win = EventLoop.window
+    # 		self.keyboard = win.request_keyboard(self._keyboard_released, self)
+    # 		self.keyboard.bind(on_key_down=self._on_keyboard_down)
+    # 	
+    # 	if self.selection_mode:
+    # 		x, y = self.to_local(*touch.pos)
+    # 		target = self.find_target(x, y, self.root)
+    # 		if target:
+    # 			self.selected_widget = target
+    # 			App.get_running_app().focus_widget(target, touch=touch)
+    # 			self.clicked = True
+    # 			self.dispatch('on_show_edit', Playground)
+    # 			return True
+    # 
+    # 	if self.parent.collide_point(*touch.pos):
+    # 		super(Playground, self).on_touch_down(touch)
+    # 
+    # 	return False

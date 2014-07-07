@@ -1,6 +1,7 @@
 from functools import partial
 from kivy.properties import ObjectProperty, ListProperty, BoundedNumericProperty, AliasProperty, BooleanProperty, \
     OptionProperty, StringProperty
+from designer.operations import ManipulatorTranslateOperation, ManipulatorResizeOperation
 from designer.playground import PlaygroundDragElement
 from kivy.clock import Clock
 from kivy.core.window import Window
@@ -196,6 +197,9 @@ class AdornerBase(RelativeLayout):
     def _adorn(self):
         pass
     
+    def prepare_operation(self, touch):
+        return None
+    
     @classmethod
     def applies_to(cls, widget):
         '''Determines if this adorner should be applied to the given :class:`~kivy.uix.widget.Widget`
@@ -217,59 +221,65 @@ class MovingAdorner(AdornerBase):
 
     def __init__(self, **kwargs):
         super(MovingAdorner, self).__init__(**kwargs)
-        self.center_area.bind(on_touch_down=self.on_center_touch_down,
-                              on_touch_move=self.on_center_touch_move,
-                              on_touch_up=self.on_center_touch_up)
+        # self.center_area.bind(on_touch_down=self.on_center_touch_down,
+        # 					  on_touch_move=self.on_center_touch_move,
+        # 					  on_touch_up=self.on_center_touch_up)
         self.bind(moving=lambda *_: setattr(self, 'highlight', bool(self.moving)))
 
-    def on_center_touch_down(self, center, touch, dispatch_children=True):
-        if 'adorner_passoff' in touch.ud and touch.ud['adorner_passoff']:
-            del touch.ud['adorner_passoff']
-            dispatch_children = False
+    def prepare_operation(self, touch):
+        if self.center_area.collide_point(*touch.pos):
+            return ManipulatorTranslateOperation(self.target, self.manipulator)
         
-        if dispatch_children and super(FloatLayout, center).on_touch_down(touch):
-            return True
-        
-        if (self.do_reparent or self.do_translate) and center.collide_point(*touch.pos):
-            touch.grab(center)
-            self.moving = center
-            self.moving_pos = self.playground.to_widget(*center.to_window(*touch.pos))
-            self.translated = False
-            self.manipulator.start_move(self.target, touch)
-            return True
-    
-    def on_center_touch_move(self, center, touch):
-        if touch.grab_current is center and self.moving_pos:
-            pos = self.playground.to_widget(*center.to_window(*touch.pos))
-            dx, dy = pos[0] - self.moving_pos[0], pos[1] - self.moving_pos[1]
-            self.moving_pos = pos
-            
-            if self.moving:
-                if self.do_reparent and (not self.target.parent.collide_point(*pos) or (
-                        not self.do_translate and not self.target.collide_point(*pos))):
-                    self.finish_move(center, touch)
-                    #self.playground.prepare_widget_dragging(touch, delay=0)
-                    touch.push()
-                    touch.apply_transform_2d(center.to_window)
-                    self.manipulator.start_reparent(self.target, touch)
-                    touch.pop()
-                elif self.do_translate:
-                    helpers.move_widget(self.target, x=self.target.x + dx, y=self.target.y + dy)
+        return super(MovingAdorner, self).prepare_operation(touch)
 
-            return True
-    
-    def finish_move(self, center, touch):
-        if touch.grab_current is center:
-            touch.ungrab(center)
-            self.moving = None
-            self.moving_pos = 0, 0
-            return True
-        return False
-    
-    def on_center_touch_up(self, center, touch):
-        if self.finish_move(center, touch):
-            # self.manipulator.finish_move(touch)
-            return True
+    # def on_center_touch_down(self, center, touch, dispatch_children=True):
+    # 	if 'adorner_passoff' in touch.ud and touch.ud['adorner_passoff']:
+    # 		del touch.ud['adorner_passoff']
+    # 		dispatch_children = False
+    # 	
+    # 	if dispatch_children and super(FloatLayout, center).on_touch_down(touch):
+    # 		return True
+    # 	
+    # 	if (self.do_reparent or self.do_translate) and center.collide_point(*touch.pos):
+    # 		touch.grab(center)
+    # 		self.moving = center
+    # 		self.moving_pos = self.playground.to_widget(*center.to_window(*touch.pos))
+    # 		self.translated = False
+    # 		self.manipulator.start_move(self.target, touch)
+    # 		return True
+    # 
+    # def on_center_touch_move(self, center, touch):
+    # 	if touch.grab_current is center and self.moving_pos:
+    # 		pos = self.playground.to_widget(*center.to_window(*touch.pos))
+    # 		dx, dy = pos[0] - self.moving_pos[0], pos[1] - self.moving_pos[1]
+    # 		self.moving_pos = pos
+    # 		
+    # 		if self.moving:
+    # 			if self.do_reparent and (not self.target.parent.collide_point(*pos) or (
+    # 					not self.do_translate and not self.target.collide_point(*pos))):
+    # 				self.finish_move(center, touch)
+    # 				#self.playground.prepare_widget_dragging(touch, delay=0)
+    # 				touch.push()
+    # 				touch.apply_transform_2d(center.to_window)
+    # 				self.manipulator.start_reparent(self.target, touch)
+    # 				touch.pop()
+    # 			elif self.do_translate:
+    # 				helpers.move_widget(self.target, x=self.target.x + dx, y=self.target.y + dy)
+    # 
+    # 		return True
+    # 
+    # def finish_move(self, center, touch):
+    # 	if touch.grab_current is center:
+    # 		touch.ungrab(center)
+    # 		self.moving = None
+    # 		self.moving_pos = 0, 0
+    # 		return True
+    # 	return False
+    # 
+    # def on_center_touch_up(self, center, touch):
+    # 	if self.finish_move(center, touch):
+    # 		# self.manipulator.finish_move(touch)
+    # 		return True
     
 class RootAdorner(AdornerBase):
     exclusive = True
@@ -375,12 +385,9 @@ class PlaygroundDragAdorner(AdornerBase):
             
             if reparented:
                 self.on_touch_up(touch)
-                x = local[0] - self.target.width / 2.
-                y = local[1] - self.target.height / 2.
-                helpers.move_widget(self.target, x, y)
-                touch.ud['adorner_passoff'] = True
-                #self.dragelem.parent.remove_widget(self.dragelem)
-                App.get_running_app().focus_widget(self.target, touch=touch)
+                if hasattr(dropelem, 'do_layout'):
+                    dropelem.do_layout()
+                self.manipulator.finish_reparent(self.target, touch)
             
             return True
     
@@ -547,14 +554,14 @@ class ResizeAdorner(MovingAdorner):
         self.moving_pos = 0, 0
         super(ResizeAdorner, self).__init__(**kwargs)
         self.icon = 'icons/appbar.arrow.expand.png'
-        self.htop.bind(on_touch_down=self._start_dragging)
-        self.hleft.bind(on_touch_down=self._start_dragging)
-        self.hright.bind(on_touch_down=self._start_dragging)
-        self.hbottom.bind(on_touch_down=self._start_dragging)
-        self.htl.bind(on_touch_down=self._start_dragging)
-        self.htr.bind(on_touch_down=self._start_dragging)
-        self.hbl.bind(on_touch_down=self._start_dragging)
-        self.hbr.bind(on_touch_down=self._start_dragging)
+        # self.htop.bind(on_touch_down=self._start_dragging)
+        # self.hleft.bind(on_touch_down=self._start_dragging)
+        # self.hright.bind(on_touch_down=self._start_dragging)
+        # self.hbottom.bind(on_touch_down=self._start_dragging)
+        # self.htl.bind(on_touch_down=self._start_dragging)
+        # self.htr.bind(on_touch_down=self._start_dragging)
+        # self.hbl.bind(on_touch_down=self._start_dragging)
+        # self.hbr.bind(on_touch_down=self._start_dragging)
         
         self.htop.pos_hint = {'center_x': 0.5, 'center_y': 1}
         self.hleft.pos_hint = {'center_x': 0, 'center_y': 0.5}
@@ -567,75 +574,83 @@ class ResizeAdorner(MovingAdorner):
         
         self.count = 0
     
-    def _start_dragging(self, handle, touch):
-        if handle.disabled:
-            return False
-        
-        if handle.collide_point(*touch.pos):
-            touch.grab(self)
-            self.resizing = handle
-            self.moving_pos = self.playground.to_local(*handle.to_window(*touch.pos))
-            self.manipulator.start_resize(self.target, touch)
-            return True
+    def prepare_operation(self, touch):
+        for handle in self.center_area.children:
+            if not handle.disabled and handle.collide_point(*touch.pos):
+                return ManipulatorResizeOperation(widget=self.target, manipulator=self.manipulator,
+                                                  vertical=handle.move_vertical,
+                                                  horizontal=handle.move_horizontal)
+        return super(ResizeAdorner, self).prepare_operation(touch)
     
-    def on_touch_move(self, touch):
-        if touch.grab_current is self and self.moving_pos:
-            pos = self.playground.to_local(*touch.pos)
-            dx = pos[0] - self.moving_pos[0]
-            dy = pos[1] - self.moving_pos[1]
-            self.moving_pos = pos
-            
-            if self.resizing:
-                vertical = self.resizing.move_vertical
-                horizontal = self.resizing.move_horizontal
-                halign, valign = helpers.get_alignment(self.target)
-                
-                if vertical != 'none':
-                    down = vertical == 'down'
-                    dy = pos[1]
-                    base_pos = self.target.top if down else self.target.y
-                    orig_height = self.target.height
-                    new_height = max(0, (base_pos - dy) if down else (dy - base_pos))
-                    helpers.resize_widget(self.target, height=new_height)
-                    real_height = self.target.height
-                    if self.do_translate:
-                        orig_y = new_y = self.target.y
-                        if down and valign == 'bottom':
-                            new_y += orig_height - real_height
-                        elif not down and valign == 'top':
-                            new_y -= orig_height - real_height
-                        if new_y != orig_y:
-                            helpers.move_widget(self.target, y=new_y)
-                    # if down and self.do_translate:
-                    # 	helpers.move_widget(self.target, y=self.target.y + orig_height - real_height)
-                
-                if horizontal != 'none':
-                    left = horizontal == 'left'
-                    dx = pos[0]
-                    base_pos = self.target.right if left else self.target.x
-                    orig_width = self.target.width
-                    new_width = max(0, (base_pos - dx) if left else (dx - base_pos))
-                    helpers.resize_widget(self.target, width=new_width)
-                    real_width = self.target.width
-                    if self.do_translate:
-                        orig_x = new_x = self.target.x
-                        if left and halign == 'left':
-                            new_x += orig_width - real_width
-                        elif not left and halign == 'right':
-                            new_x -= orig_width - real_width
-                        if new_x != orig_x:
-                            helpers.move_widget(self.target, x=new_x)
-                    # if left and self.do_translate:
-                    # 	helpers.move_widget(self.target, x=self.target.x + orig_width - real_width)
-
-            return True
-    
-    def on_touch_up(self, touch):
-        if touch.grab_current is self:
-            touch.ungrab(self)
-            self.resizing = None
-            self.moving_pos = 0, 0
-            return True
+    # def _start_dragging(self, handle, touch):
+    # 	if handle.disabled:
+    # 		return False
+    # 	
+    # 	if handle.collide_point(*touch.pos):
+    # 		touch.grab(self)
+    # 		self.resizing = handle
+    # 		self.moving_pos = self.playground.to_local(*handle.to_window(*touch.pos))
+    # 		self.manipulator.start_resize(self.target, touch)
+    # 		return True
+    # 
+    # def on_touch_move(self, touch):
+    # 	if touch.grab_current is self and self.moving_pos:
+    # 		pos = self.playground.to_local(*touch.pos)
+    # 		dx = pos[0] - self.moving_pos[0]
+    # 		dy = pos[1] - self.moving_pos[1]
+    # 		self.moving_pos = pos
+    # 		
+    # 		if self.resizing:
+    # 			vertical = self.resizing.move_vertical
+    # 			horizontal = self.resizing.move_horizontal
+    # 			halign, valign = helpers.get_alignment(self.target)
+    # 			
+    # 			if vertical != 'none':
+    # 				down = vertical == 'down'
+    # 				dy = pos[1]
+    # 				base_pos = self.target.top if down else self.target.y
+    # 				orig_height = self.target.height
+    # 				new_height = max(0, (base_pos - dy) if down else (dy - base_pos))
+    # 				helpers.resize_widget(self.target, height=new_height)
+    # 				real_height = self.target.height
+    # 				if self.do_translate:
+    # 					orig_y = new_y = self.target.y
+    # 					if down and valign == 'bottom':
+    # 						new_y += orig_height - real_height
+    # 					elif not down and valign == 'top':
+    # 						new_y -= orig_height - real_height
+    # 					if new_y != orig_y:
+    # 						helpers.move_widget(self.target, y=new_y)
+    # 				# if down and self.do_translate:
+    # 				# 	helpers.move_widget(self.target, y=self.target.y + orig_height - real_height)
+    # 			
+    # 			if horizontal != 'none':
+    # 				left = horizontal == 'left'
+    # 				dx = pos[0]
+    # 				base_pos = self.target.right if left else self.target.x
+    # 				orig_width = self.target.width
+    # 				new_width = max(0, (base_pos - dx) if left else (dx - base_pos))
+    # 				helpers.resize_widget(self.target, width=new_width)
+    # 				real_width = self.target.width
+    # 				if self.do_translate:
+    # 					orig_x = new_x = self.target.x
+    # 					if left and halign == 'left':
+    # 						new_x += orig_width - real_width
+    # 					elif not left and halign == 'right':
+    # 						new_x -= orig_width - real_width
+    # 					if new_x != orig_x:
+    # 						helpers.move_widget(self.target, x=new_x)
+    # 				# if left and self.do_translate:
+    # 				# 	helpers.move_widget(self.target, x=self.target.x + orig_width - real_width)
+    # 
+    # 		return True
+    # 
+    # def on_touch_up(self, touch):
+    # 	if touch.grab_current is self:
+    # 		touch.ungrab(self)
+    # 		self.resizing = None
+    # 		self.moving_pos = 0, 0
+    # 		return True
     
     def _adorn(self):
         layout = self.target.parent
