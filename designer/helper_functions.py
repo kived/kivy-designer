@@ -88,19 +88,87 @@ def get_kivy_designer_dir():
     return user_dir
 
 
-class BoxLayout(object):
-    @classmethod
-    def widget_position(cls, widget, layout):
-        layout_size = len(layout.children)
-        layout_pos = layout.children.index(widget)
-        at_front = layout_pos == (layout_size - 1)
-        at_end = layout_pos == 0
-        return {
-            'layout_size': layout_size,
-            'layout_pos': layout_pos,
-            'at_front': at_front,
-            'at_end': at_end
-        }
+def boxlayout_position(widget, layout):
+    layout_size = len(layout.children)
+    layout_pos = layout.children.index(widget)
+    at_front = layout_pos == (layout_size - 1)
+    at_end = layout_pos == 0
+    return {
+        'layout_size': layout_size,
+        'layout_pos': layout_pos,
+        'at_front': at_front,
+        'at_end': at_end
+    }
+
+
+def gridlayout_position(widget, layout):
+    layout_size = len(layout.children)
+    layout_pos = layout.children.index(widget)
+    forward_pos = layout_size - layout_pos - 1
+    layout_rows = layout.rows
+    layout_cols = layout.cols
+    row = col = 0
+    at_front = forward_pos == 0
+    at_end = forward_pos == (layout_size - 1)
+    
+    if layout_cols:
+        layout_part = layout_size % layout_cols
+        layout_rows = layout_size / layout_cols
+        if layout_part:
+            layout_rows += 1
+        row = forward_pos / layout_cols
+        col = forward_pos % layout_cols
+        # return {
+        # 	'layout_size': layout_size,
+        #     'layout_pos': layout_pos,
+        #     'layout_cols': layout_cols,
+        #     'layout_rows': layout_rows,
+        #     'row': row,
+        # 	'col': col,
+        #     'at_top': forward_pos < layout_cols,
+        #     'at_bottom': forward_pos >= (layout_size - (layout_size % layout_cols)),
+        #     'at_left': forward_pos % layout_cols == 0,
+        #     'at_right': forward_pos % layout_cols == layout_cols - 1,
+        #     'at_front': at_front,
+        #     'at_end': at_end
+        # }
+    
+    elif layout_rows:
+        layout_part = layout_size % layout_rows
+        layout_cols = layout_size / layout_rows
+        if layout_part:
+            layout_cols += 1
+        row = forward_pos / layout_cols
+        col = forward_pos % layout_cols
+        # return {
+        # 	'layout_size': layout_size,
+        #     'layout_pos': layout_pos,
+        #     'layout_rows': layout_rows,
+        #     'layout_cols': layout_cols,
+        #     'row': row,
+        #     'col': col,
+        #     'at_top': forward_pos % layout_rows == 0,
+        #     'at_bottom': forward_pos % layout_rows == layout_rows - 1,
+        #     'at_left': forward_pos < layout_cols,
+        #     'at_right': forward_pos >= (layout_size - (layout_size % layout_rows)),
+        #     'at_front': at_front,
+        #     'at_end': at_end
+        # }
+    
+    return {
+        'layout_size': layout_size,
+        'layout_pos': layout_pos,
+        'layout_rows': layout_rows,
+        'layout_cols': layout_cols,
+        'row': row,
+        'col': col,
+        'at_top': row == 0,
+        'at_bottom': row == layout_rows - 1,
+        'at_left': col == 0,
+        'at_right': col == layout_cols - 1,
+        'at_front': at_front,
+        'at_end': at_end
+    }
 
 
 def get_alignment(widget):

@@ -9,7 +9,6 @@ class RootWidget(BoxLayout):
     '''
     pass
 
-
 class MainApp(App):
     '''This is the main class of your app.
        Define any app wide entities here.

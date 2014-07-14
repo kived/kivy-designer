@@ -1385,8 +1385,15 @@ class DesignerApp(App):
 
         container.widgettree = self.root.ui_creator.widgettree
         return container
-
-    def focus_widget(self, widget, dt=None, touch=None, *largs):
+    
+    def create_new_widget(self, widgetname, touch, transform=None):
+        touch.push()
+        if transform:
+            touch.apply_transform_2d(transform)
+        self.manipulator.create_new_widget(widgetname, touch)
+        touch.pop()
+    
+    def focus_widget(self, widget, *largs):
         '''Called when a widget is select in Playground.
         '''
         self.widget_focused = widget
@@ -1398,5 +1405,5 @@ class DesignerApp(App):
         self.root.ui_creator.playground.clicked = True
         self.root.on_show_edit()
         
-        self.manipulator.select(widget, touch)
+        # self.manipulator.select(widget, touch)
     

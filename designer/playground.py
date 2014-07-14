@@ -1,8 +1,9 @@
 import re
 import functools
+from kivy.uix.boxlayout import BoxLayout
 
 from kivy.uix.scatter import ScatterPlane
-from kivy.uix.boxlayout import BoxLayout
+# from kivy.uix.boxlayout import BoxLayout
 from kivy.uix.layout import Layout
 from kivy.properties import ObjectProperty, BooleanProperty,\
     OptionProperty, ListProperty, NumericProperty
@@ -26,7 +27,7 @@ from designer.undo_manager import WidgetOperation, WidgetDragOperation
 import designer.helper_functions as helpers
 
 
-class PlaygroundDragElement(BoxLayout):
+class PlaygroundDragElement(Layout):
     '''An instance of this class is the drag element shown when user tries to
        add a widget to :class:`~designer.playground.Playground` by dragging
        from :class:`~designer.toolbox.Toolbox` to
@@ -82,6 +83,10 @@ class PlaygroundDragElement(BoxLayout):
         super(PlaygroundDragElement, self).__init__(**kwargs)
         self._prev_target = None
         self.i = 0
+        
+        self.bind(children=self._trigger_layout, parent=self._trigger_layout,
+                  size=self._trigger_layout, pos=self._trigger_layout)
+        
         if self.child:
             self.first_pos = (self.child.pos[0], self.child.pos[1])
             self.first_pos_hint = self.child.pos_hint.copy()
@@ -90,29 +95,29 @@ class PlaygroundDragElement(BoxLayout):
                                     self.child.size_hint[1])
             self.add_widget(self.child)
 
-    def is_intersecting_playground(self, x, y):
-        '''To determine whether x,y is inside playground
-        '''
-        if not self.playground:
-            return False
-    
-        if self.playground.x <= x <= self.playground.right and\
-                self.playground.y <= y <= self.playground.top:
-            return True
-    
-        return False
-    
-    def is_intersecting_widgettree(self, x, y):
-        '''To determine whether x,y is inside playground
-        '''
-        if not self.widgettree:
-            return False
-    
-        if self.widgettree.x <= x <= self.widgettree.right and\
-                self.widgettree.y <= y <= self.widgettree.top:
-            return True
-    
-        return False
+    # def is_intersecting_playground(self, x, y):
+    # 	'''To determine whether x,y is inside playground
+    # 	'''
+    # 	if not self.playground:
+    # 		return False
+    # 
+    # 	if self.playground.x <= x <= self.playground.right and\
+    # 			self.playground.y <= y <= self.playground.top:
+    # 		return True
+    # 
+    # 	return False
+    # 
+    # def is_intersecting_widgettree(self, x, y):
+    # 	'''To determine whether x,y is inside playground
+    # 	'''
+    # 	if not self.widgettree:
+    # 		return False
+    # 
+    # 	if self.widgettree.x <= x <= self.widgettree.right and\
+    # 			self.widgettree.y <= y <= self.widgettree.top:
+    # 		return True
+    # 
+    # 	return False
     
     def do_layout(self, *largs):
         if not self.child or self.child.parent is not self:
@@ -121,246 +126,246 @@ class PlaygroundDragElement(BoxLayout):
         self.child.pos = self.pos
         self.child.size = self.size
 
-    def passoff_to_adorner(self, local, touch):
-        self.on_touch_up(touch)
-        x, y = local
-        x -= self.child.width / 2.
-        y -= self.child.height / 2.
-        helpers.move_widget(self.child, x, y)
-        self.playground.dragging = False
-        touch.ud['adorner_passoff'] = True
-        App.get_running_app().focus_widget(self.child, touch=touch)
-
-    def on_touch_move(self, touch):
-        '''This is responsible for moving the drag element and showing where
-           the widget it contains will be added.
-        '''
-        
-        if touch.grab_current is self:
-            self.playground.sandbox.error_active = True
-            with self.playground.sandbox:
-                target = None
-                self.center_x = touch.x
-                self.y = touch.y + 20
-                local = self.playground.to_widget(self.center_x, self.y)
-                if self.is_intersecting_playground(self.center_x, self.y):
-                    target = self.playground.try_place_widget(
-                        self.child, self.center_x, self.y - 20)
-        
-                else:
-                    #self.widgettree.collide_point(self.center_x, self.y)
-                    #not working :(
-                    #had to use this method
-                    if self.is_intersecting_widgettree(self.center_x, self.y):
-                        node = self.widgettree.tree.get_node_at_pos(
-                            (self.center_x, touch.y))
-                        if node:
-                            if node.node == self.child:
-                                return True
-        
-                            else:
-                                while node and \
-                                        node.node != self.playground.sandbox:
-                                    widget = node.node
-                                    if self.playground.allowed_target_for(
-                                            widget, self.child):
-                                        target = widget
-                                        break
-        
-                                    node = node.parent_node
-        
-                if helpers.widget_contains(self.child, target):
-                    return True
-        
-                adorner_passoff = False
-        
-                def add_widget(target, index=0, real=False):
-                    if self.child.parent:
-                        if self.target:
-                            if isinstance(self.target, ScreenManager):
-                                if isinstance(self.child, Screen):
-                                    self.target.remove_widget(self.child)
-        
-                                self.target.real_remove_widget(self.child)
-        
-                            elif not isinstance(self.target, TabbedPanel):
-                                self.target.remove_widget(self.child)
-        
-                        if self.child.parent:
-                            self.child.parent.remove_widget(self.child)
-                    
-                    if real:
-                        target.real_add_widget(self.child, index=index)
-                    else:
-                        target.add_widget(self.child, index=index)
-        
-                if self.drag_type == 'dragndrop':
-                    self.can_place = target == self.drag_parent
-        
-                else:
-                    self.can_place = target is not None
-        
-                self.child.pos = self.first_pos
-                self.child.pos_hint = self.first_pos_hint.copy()
-                self.child.size_hint = self.first_size_hint
-                self.child.size = self.first_size
-        
-                if target:
-                    if hasattr(target, 'do_layout'):
-                        target.do_layout()
-                    if self.can_place and self.drag_type == 'dragndrop':
-                        if self.is_intersecting_playground(self.center_x,
-                                                           self.y):
-                            x, y = self.playground.to_local(*touch.pos)
-                            target2 = self.playground.find_target(
-                                x, y, self.playground.root)
-                            if target2.parent:
-                                _parent = target2.parent
-                                index = _parent.children.index(target2)
-                                add_widget(target, index)
-                                if target is not self:
-                                    adorner_passoff = True
-        
-                        else:
-                            if self.is_intersecting_widgettree(self.center_x,
-                                                               self.y):
-                                node = self.widgettree.tree.get_node_at_pos(
-                                    (self.center_x, touch.y))
-                                if node:
-                                    target2 = node.node
-                                    if target2.parent:
-                                        _parent = target2.parent
-                                        add_widget(target, _parent.children.index(target2))
-        
-                    elif not self.can_place and self.child.parent != self:
-                        self.child.pos = (0, 0)
-                        self.child.size_hint = (1, 1)
-                        add_widget(self)
-        
-                    elif self.can_place and self.drag_type != 'dragndrop':
-                        if isinstance(target, ScreenManager):
-                            add_widget(target, real=True)
-                        else:
-                            add_widget(target)
-        
-                elif not self.can_place and self.child.parent != self:
-                    self.child.pos = (0, 0)
-                    self.child.size_hint = (1, 1)
-                    add_widget(self)
-        
-                self.target = target
-        
-            if adorner_passoff:
-                self.passoff_to_adorner(local, touch)
-        
-        return True
-
-    def on_touch_up(self, touch):
-        '''This is responsible for adding the widget to the parent
-        '''
-        if touch.grab_current is self:
-            self.playground.sandbox.error_active = True
-            with self.playground.sandbox:
-                touch.ungrab(self)
-                widget_from = None
-                target = None
-                self.center_x = touch.x
-                self.y = touch.y + 20
-                local = self.playground.to_widget(self.center_x, self.y)
-                if self.is_intersecting_playground(self.center_x, self.y):
-                    target = self.playground.try_place_widget(
-                        self.child, self.center_x, self.y - 20)
-                    widget_from = 'playground'
-        
-                else:
-                    #self.widgettree.collide_point(self.center_x, self.y)
-                    #not working :(
-                    #had to use this method
-                    if self.is_intersecting_widgettree(self.center_x, self.y):
-                        node = self.widgettree.tree.get_node_at_pos(
-                            (self.center_x, touch.y))
-                        if node:
-                            widget = node.node
-                            while widget and widget != self.playground.sandbox:
-                                if self.playground.allowed_target_for(
-                                        widget, self.child):
-                                    target = widget
-                                    widget_from = 'treeview'
-                                    break
-        
-                                widget = widget.parent
-                parent = None
-                if self.child.parent != self:
-                    parent = self.child.parent
-                elif not self.playground.root:
-                    parent = self.child.parent
-        
-                index = -1
-        
-                if self.drag_type == 'dragndrop':
-                    self.can_place = target == self.drag_parent and \
-                        parent is not None
-                else:
-                    self.can_place = target is not None and \
-                        parent is not None
-        
-                if self.target:
-                    try:
-                        index = self.target.children.index(self.child)
-                    except ValueError:
-                        pass
-        
-                    self.target.remove_widget(self.child)
-                    if isinstance(self.target, ScreenManager):
-                        self.target.real_remove_widget(self.child)
-        
-                elif parent:
-                    index = parent.children.index(self.child)
-                    parent.remove_widget(self.child)
-        
-                if self.can_place or self.playground.root is None:
-                    child = self.child
-                    if self.drag_type == 'dragndrop':
-                        if self.can_place and parent:
-                            if widget_from == 'playground':
-                                self.playground.place_widget(
-                                    child, self.center_x, self.y - 20,
-                                    index=index)
-                            else:
-                                self.playground.place_widget(
-                                    child, self.center_x, self.y - 20,
-                                    index=index, target=target)
-        
-                        elif not self.can_place:
-                            self.playground.undo_dragging(touch)
-        
-                        self.playground.drag_operation = []
-        
-                    else:
-                        if widget_from == 'playground':
-                            self.playground.place_widget(
-                                child, self.center_x, self.y - 20)
-        
-                        else:
-                            #playground.add_widget_to_parent(child,target)
-                            #doesn't work, don't know why :/.
-                            #so, has to use this
-                            self.playground.add_widget_to_parent(type(child)(),
-                                                                 target)
-        
-                elif self.drag_type == 'dragndrop':
-                    self.playground.undo_dragging(touch)
-        
-                self.target = None
-        
-        if self.parent:
-            self.parent.remove_widget(self)
-        
-        if self.child in self.children:
-            self.remove_widget(self.child)
-            self.widgettree.refresh()
-        
-        return True
+    # def passoff_to_adorner(self, local, touch):
+    # 	self.on_touch_up(touch)
+    # 	x, y = local
+    # 	x -= self.child.width / 2.
+    # 	y -= self.child.height / 2.
+    # 	helpers.move_widget(self.child, x, y)
+    # 	self.playground.dragging = False
+    # 	touch.ud['adorner_passoff'] = True
+    # 	App.get_running_app().focus_widget(self.child, touch=touch)
+    # 
+    # def on_touch_move(self, touch):
+    # 	'''This is responsible for moving the drag element and showing where
+    # 	   the widget it contains will be added.
+    # 	'''
+    # 	
+    # 	if touch.grab_current is self:
+    # 		self.playground.sandbox.error_active = True
+    # 		with self.playground.sandbox:
+    # 			target = None
+    # 			self.center_x = touch.x
+    # 			self.y = touch.y + 20
+    # 			local = self.playground.to_widget(self.center_x, self.y)
+    # 			if self.is_intersecting_playground(self.center_x, self.y):
+    # 				target = self.playground.try_place_widget(
+    # 					self.child, self.center_x, self.y - 20)
+    # 	
+    # 			else:
+    # 				#self.widgettree.collide_point(self.center_x, self.y)
+    # 				#not working :(
+    # 				#had to use this method
+    # 				if self.is_intersecting_widgettree(self.center_x, self.y):
+    # 					node = self.widgettree.tree.get_node_at_pos(
+    # 						(self.center_x, touch.y))
+    # 					if node:
+    # 						if node.node == self.child:
+    # 							return True
+    # 	
+    # 						else:
+    # 							while node and \
+    # 									node.node != self.playground.sandbox:
+    # 								widget = node.node
+    # 								if self.playground.allowed_target_for(
+    # 										widget, self.child):
+    # 									target = widget
+    # 									break
+    # 	
+    # 								node = node.parent_node
+    # 	
+    # 			if helpers.widget_contains(self.child, target):
+    # 				return True
+    # 	
+    # 			adorner_passoff = False
+    # 	
+    # 			def add_widget(target, index=0, real=False):
+    # 				if self.child.parent:
+    # 					if self.target:
+    # 						if isinstance(self.target, ScreenManager):
+    # 							if isinstance(self.child, Screen):
+    # 								self.target.remove_widget(self.child)
+    # 	
+    # 							self.target.real_remove_widget(self.child)
+    # 	
+    # 						elif not isinstance(self.target, TabbedPanel):
+    # 							self.target.remove_widget(self.child)
+    # 	
+    # 					if self.child.parent:
+    # 						self.child.parent.remove_widget(self.child)
+    # 				
+    # 				if real:
+    # 					target.real_add_widget(self.child, index=index)
+    # 				else:
+    # 					target.add_widget(self.child, index=index)
+    # 	
+    # 			if self.drag_type == 'dragndrop':
+    # 				self.can_place = target == self.drag_parent
+    # 	
+    # 			else:
+    # 				self.can_place = target is not None
+    # 	
+    # 			self.child.pos = self.first_pos
+    # 			self.child.pos_hint = self.first_pos_hint.copy()
+    # 			self.child.size_hint = self.first_size_hint
+    # 			self.child.size = self.first_size
+    # 	
+    # 			if target:
+    # 				if hasattr(target, 'do_layout'):
+    # 					target.do_layout()
+    # 				if self.can_place and self.drag_type == 'dragndrop':
+    # 					if self.is_intersecting_playground(self.center_x,
+    # 													   self.y):
+    # 						x, y = self.playground.to_local(*touch.pos)
+    # 						target2 = self.playground.find_target(
+    # 							x, y, self.playground.root)
+    # 						if target2.parent:
+    # 							_parent = target2.parent
+    # 							index = _parent.children.index(target2)
+    # 							add_widget(target, index)
+    # 							if target is not self:
+    # 								adorner_passoff = True
+    # 	
+    # 					else:
+    # 						if self.is_intersecting_widgettree(self.center_x,
+    # 														   self.y):
+    # 							node = self.widgettree.tree.get_node_at_pos(
+    # 								(self.center_x, touch.y))
+    # 							if node:
+    # 								target2 = node.node
+    # 								if target2.parent:
+    # 									_parent = target2.parent
+    # 									add_widget(target, _parent.children.index(target2))
+    # 	
+    # 				elif not self.can_place and self.child.parent != self:
+    # 					self.child.pos = (0, 0)
+    # 					self.child.size_hint = (1, 1)
+    # 					add_widget(self)
+    # 	
+    # 				elif self.can_place and self.drag_type != 'dragndrop':
+    # 					if isinstance(target, ScreenManager):
+    # 						add_widget(target, real=True)
+    # 					else:
+    # 						add_widget(target)
+    # 	
+    # 			elif not self.can_place and self.child.parent != self:
+    # 				self.child.pos = (0, 0)
+    # 				self.child.size_hint = (1, 1)
+    # 				add_widget(self)
+    # 	
+    # 			self.target = target
+    # 	
+    # 		if adorner_passoff:
+    # 			self.passoff_to_adorner(local, touch)
+    # 	
+    # 	return True
+    # 
+    # def on_touch_up(self, touch):
+    # 	'''This is responsible for adding the widget to the parent
+    # 	'''
+    # 	if touch.grab_current is self:
+    # 		self.playground.sandbox.error_active = True
+    # 		with self.playground.sandbox:
+    # 			touch.ungrab(self)
+    # 			widget_from = None
+    # 			target = None
+    # 			self.center_x = touch.x
+    # 			self.y = touch.y + 20
+    # 			local = self.playground.to_widget(self.center_x, self.y)
+    # 			if self.is_intersecting_playground(self.center_x, self.y):
+    # 				target = self.playground.try_place_widget(
+    # 					self.child, self.center_x, self.y - 20)
+    # 				widget_from = 'playground'
+    # 	
+    # 			else:
+    # 				#self.widgettree.collide_point(self.center_x, self.y)
+    # 				#not working :(
+    # 				#had to use this method
+    # 				if self.is_intersecting_widgettree(self.center_x, self.y):
+    # 					node = self.widgettree.tree.get_node_at_pos(
+    # 						(self.center_x, touch.y))
+    # 					if node:
+    # 						widget = node.node
+    # 						while widget and widget != self.playground.sandbox:
+    # 							if self.playground.allowed_target_for(
+    # 									widget, self.child):
+    # 								target = widget
+    # 								widget_from = 'treeview'
+    # 								break
+    # 	
+    # 							widget = widget.parent
+    # 			parent = None
+    # 			if self.child.parent != self:
+    # 				parent = self.child.parent
+    # 			elif not self.playground.root:
+    # 				parent = self.child.parent
+    # 	
+    # 			index = -1
+    # 	
+    # 			if self.drag_type == 'dragndrop':
+    # 				self.can_place = target == self.drag_parent and \
+    # 					parent is not None
+    # 			else:
+    # 				self.can_place = target is not None and \
+    # 					parent is not None
+    # 	
+    # 			if self.target:
+    # 				try:
+    # 					index = self.target.children.index(self.child)
+    # 				except ValueError:
+    # 					pass
+    # 	
+    # 				self.target.remove_widget(self.child)
+    # 				if isinstance(self.target, ScreenManager):
+    # 					self.target.real_remove_widget(self.child)
+    # 	
+    # 			elif parent:
+    # 				index = parent.children.index(self.child)
+    # 				parent.remove_widget(self.child)
+    # 	
+    # 			if self.can_place or self.playground.root is None:
+    # 				child = self.child
+    # 				if self.drag_type == 'dragndrop':
+    # 					if self.can_place and parent:
+    # 						if widget_from == 'playground':
+    # 							self.playground.place_widget(
+    # 								child, self.center_x, self.y - 20,
+    # 								index=index)
+    # 						else:
+    # 							self.playground.place_widget(
+    # 								child, self.center_x, self.y - 20,
+    # 								index=index, target=target)
+    # 	
+    # 					elif not self.can_place:
+    # 						self.playground.undo_dragging(touch)
+    # 	
+    # 					self.playground.drag_operation = []
+    # 	
+    # 				else:
+    # 					if widget_from == 'playground':
+    # 						self.playground.place_widget(
+    # 							child, self.center_x, self.y - 20)
+    # 	
+    # 					else:
+    # 						#playground.add_widget_to_parent(child,target)
+    # 						#doesn't work, don't know why :/.
+    # 						#so, has to use this
+    # 						self.playground.add_widget_to_parent(type(child)(),
+    # 															 target)
+    # 	
+    # 			elif self.drag_type == 'dragndrop':
+    # 				self.playground.undo_dragging(touch)
+    # 	
+    # 			self.target = None
+    # 	
+    # 	if self.parent:
+    # 		self.parent.remove_widget(self)
+    # 	
+    # 	if self.child in self.children:
+    # 		self.remove_widget(self.child)
+    # 		self.widgettree.refresh()
+    # 	
+    # 	return True
 
 
 class Playground(ScatterPlane):
@@ -944,6 +949,12 @@ class Playground(ScatterPlane):
             self.touch = touch
             self.touch_pos = touch.pos
             Clock.schedule_once(self.start_widget_dragging, delay)
+
+    def on_touch_down(self, touch):
+        if self.parent.collide_point(*touch.pos):
+            super(Playground, self).on_touch_down(touch)
+        
+        return False
 
     # def on_touch_down(self, touch):
     # 	'''An override of ScatterPlane's on_touch_down.
