@@ -1,11 +1,11 @@
 from kivy.properties import ObjectProperty, ListProperty, AliasProperty
 
-from designer.operations import ManipulatorTranslateOperation
+from designer.operations import ManipulatorTranslateOperation, ManipulatorReparentOperation
 from designer.playground import Playground
 from kivy.app import App
 from kivy.clock import Clock
 from designer.uix.adorner import RootAdorner, PlaygroundDragAdorner, \
-    BlockAdorner, ResizeAdorner, AnchorAdorner, AdornerBase
+    BlockAdorner, ResizeAdorner, AnchorAdorner, AdornerBase, NullAdorner, GridAdorner, BoxAdorner
 from kivy.uix.floatlayout import FloatLayout
 import designer.helper_functions as helpers
 
@@ -38,7 +38,8 @@ class Manipulator(FloatLayout):
     adorners = [
         RootAdorner,
         PlaygroundDragAdorner,
-        BlockAdorner,
+        BoxAdorner,
+        GridAdorner,
         ResizeAdorner,
         AnchorAdorner,
     ]
@@ -46,27 +47,27 @@ class Manipulator(FloatLayout):
     def __init__(self, **kwargs):
         super(Manipulator, self).__init__(**kwargs)
         self.keyboard = None
+        self.dragelem = None
         
         Clock.schedule_once(self._setup)
     
     def _setup(self, *_):
         self.adorners = [a(playground=self.playground, manipulator=self) for a in self.adorners[:]]
-        self.null_adorner = AdornerBase(playground=self.playground, manipulator=self)
+        self.null_adorner = NullAdorner(playground=self.playground, manipulator=self)
         self.current_operation = None
 
-    def select(self, widget, touch=None):
+    def select(self, widget):
         if self.target is widget and self.current_adorner:
-            self.current_adorner.select(self.target)
+            # self.current_adorner.select(self.target)
+            self.adorner_select(self.target)
         else:
             self.target = widget
-        if touch:
-            raise RuntimeError()
-            self.on_touch_down(touch)
 
     def on_target(self, *_):
         if self.target:
             self.target.bind(parent=self.update_adorners)
         self.update_adorners()
+        App.get_running_app().focus_widget(self.target)
 
     def update_adorners(self, *_):
         if self.target:
@@ -74,17 +75,22 @@ class Manipulator(FloatLayout):
             if adorners != self.active_adorners:
                 self.active_adorners = adorners
                 self.current_adorner = self.active_adorners[0]
-            self.current_adorner.select(self.target)
+            # self.current_adorner.select(self.target)
+            self.adorner_select(self.target)
         else:
             self.active_adorners = []
             self.current_adorner = None
+    
+    def adorner_select(self, target):
+        for adorner in self.adorners:
+            adorner.select(target)
     
     def next_adorner(self):
         index = self.active_adorners.index(self.current_adorner) + 1
         if index >= len(self.active_adorners):
             index = 0
         self.current_adorner = self.active_adorners[index]
-        self.current_adorner.select(self.target)
+        # self.current_adorner.select(self.target)
 
     def _get_adorners_for(self, widget):
         adorners = []
@@ -104,8 +110,9 @@ class Manipulator(FloatLayout):
     def on_touch_down(self, touch):
         if self.disabled:
             return False
-        
-        if not self.keyboard and self.collide_point(*touch.pos):
+
+        collides = self.collide_point(*touch.pos)
+        if not self.keyboard and collides:
             self.keyboard = self.get_root_window().request_keyboard(self._keyboard_released, self)
             self.keyboard.bind(on_key_down=self._on_keyboard_down)
         
@@ -123,12 +130,17 @@ class Manipulator(FloatLayout):
         if self.current_operation:
             touch.grab(self)
             return True
-
-        x, y = self.playground.to_local(*touch.pos)
-        target = self.playground.find_target(x, y, self.playground.root)
-        print 'target', target, x, y
-        self.select(target)
-        self.playground.dispatch('on_show_edit', Playground)
+        
+        if collides:
+            x, y = self.playground.to_local(*touch.pos)
+            target = self.playground.find_target(x, y, self.playground.root)
+            # print 'target', target, x, y
+            self.select(target)
+            if target:
+                self.playground.dispatch('on_show_edit', Playground)
+                return True
+        
+        return False
 
         # if self.current_adorner.on_touch_down(touch):
             # 	touch.grab(self)
@@ -137,11 +149,13 @@ class Manipulator(FloatLayout):
     def on_touch_move(self, touch):
         # if touch.grab_current is self and self.current_adorner:
         # 	return self.current_adorner.on_touch_move(touch)
+        # print 'manipulator move:', self, touch.grab_current, self.current_operation
         if touch.grab_current is self and self.current_operation:
-            touch.push()
-            touch.apply_transform_2d(self.playground.to_local)
+            # touch.push()
+            # touch.apply_transform_2d(self.playground.to_local)
+            # print 'update operation', repr(self.current_operation)
             self.current_operation = self.current_operation.update(touch)
-            touch.pop()
+            # touch.pop()
             return True
     
     def on_touch_up(self, touch):
@@ -154,6 +168,11 @@ class Manipulator(FloatLayout):
                 else:
                     self.current_operation.do_undo()
                 self.current_operation = None
+            
+            if self.dragelem:
+                if self.dragelem.parent and self.dragelem in self.dragelem.parent.children:
+                    self.dragelem.parent.remove_widget(self.dragelem)
+                self.dragelem = None
             return True
             # if 'm_op' in touch.ud:
             # 	self.finish_operation(touch)
@@ -176,48 +195,79 @@ class Manipulator(FloatLayout):
     # 			op.do_undo()
     # 		del touch.ud['m_op']
     
-    def start_reparent(self, widget, touch):
-        if not ('m_op' in touch.ud and touch.ud['m_op']):
-            touch.ud['m_op'] = ManipulatorTranslateOperation(widget, self)
-
-        from designer.playground import PlaygroundDragElement
-
-        if not isinstance(widget.parent, PlaygroundDragElement):
-            # touch.push()
-            # touch.apply_transform_2d(widget.to_window)
-            # touch.apply_transform_2d(self.to_widget)
-            drag_parent = widget.parent
+    # def start_reparent(self, widget, touch):
+    # 	if not ('m_op' in touch.ud and touch.ud['m_op']):
+    # 		touch.ud['m_op'] = ManipulatorTranslateOperation(widget, self)
+    # 
+    # 	from designer.playground import PlaygroundDragElement
+    # 
+    # 	if not isinstance(widget.parent, PlaygroundDragElement):
+    # 		# touch.push()
+    # 		# touch.apply_transform_2d(widget.to_window)
+    # 		# touch.apply_transform_2d(self.to_widget)
+    # 		drag_parent = widget.parent
+    # 		widget.parent.remove_widget(widget)
+    # 		dragelem = self.create_draggable(widget, touch)
+    # 		dragelem.drag_type = 'dragndrop'
+    # 		dragelem.drag_parent = drag_parent
+    # 		# App.get_running_app().focus_widget(self.target, touch)
+    # 		touch.grab(self.current_adorner)
+    # 		touch.grab_current = self.current_adorner
+    # 		self.current_adorner.update()
+    # 		self.current_adorner.on_touch_move(touch)
+    # 		# touch.pop()
+    # 
+    # def finish_reparent(self, widget, touch):
+    # 	local = self.playground.to_widget(*touch.pos)
+    # 	x = local[0] - widget.width / 2.
+    # 	y = local[1] - widget.height / 2.
+    # 	helpers.move_widget(widget, x, y)
+    # 	self.current_adorner.select(widget)
+    # 	touch.apply_transform_2d(self.current_adorner.center_area.to_widget)
+    # 	self.current_adorner.on_center_touch_down(self.current_adorner.center_area, touch, dispatch_children=False)
+    # 
+    # def create_draggable(self, widget, touch):
+    # 	from designer.playground import PlaygroundDragElement
+    # 	dragelem = PlaygroundDragElement(playground=self.playground, child=widget)
+    # 	# touch.grab(dragelem)
+    # 	# touch.grab_current = dragelem
+    # 	#dragelem.on_touch_move(touch)
+    # 	dragelem.center_x = touch.x
+    # 	dragelem.y = touch.y + 20
+    # 	
+    # 	App.get_running_app().root.add_widget(dragelem)
+    # 	dragelem.widgettree = self.playground.widgettree
+    # 	return dragelem
+    
+    def start_reparent(self, widget, x, y):
+        drag_parent = widget.parent
+        if drag_parent:
             widget.parent.remove_widget(widget)
-            dragelem = self.create_draggable(widget, touch)
-            dragelem.drag_type = 'dragndrop'
-            dragelem.drag_parent = drag_parent
-            # App.get_running_app().focus_widget(self.target, touch)
-            touch.grab(self.current_adorner)
-            touch.grab_current = self.current_adorner
-            self.current_adorner.update()
-            self.current_adorner.on_touch_move(touch)
-            # touch.pop()
+            drag_type = 'dragndrop'
+        else:
+            drag_type = 'new widget'
+        dragelem = self.create_draggable(widget, x, y)
+        dragelem.drag_type = drag_type
+        dragelem.drag_parent = drag_parent
+        return dragelem
     
-    def finish_reparent(self, widget, touch):
-        local = self.playground.to_widget(*touch.pos)
-        x = local[0] - widget.width / 2.
-        y = local[1] - widget.height / 2.
-        helpers.move_widget(widget, x, y)
-        self.current_adorner.select(widget)
-        touch.apply_transform_2d(self.current_adorner.center_area.to_widget)
-        self.current_adorner.on_center_touch_down(self.current_adorner.center_area, touch, dispatch_children=False)
+    def create_new_widget(self, widgetname, touch):
+        touch.grab(self)
+        widget = self.playground.get_widget(widgetname)
+        self.current_operation = ManipulatorReparentOperation(widget=widget, manipulator=self, touch=touch)
+        self.select(widget)
     
-    def create_draggable(self, widget, touch):
+    def create_draggable(self, widget, x, y):
+        if self.dragelem:
+            if self.dragelem.parent and self.dragelem in self.dragelem.parent.children:
+                self.dragelem.parent.remove_widget(self.dragelem)
+            self.dragelem = None
         from designer.playground import PlaygroundDragElement
-        dragelem = PlaygroundDragElement(playground=self.playground, child=widget)
-        # touch.grab(dragelem)
-        # touch.grab_current = dragelem
-        #dragelem.on_touch_move(touch)
-        dragelem.center_x = touch.x
-        dragelem.y = touch.y + 20
-        
-        App.get_running_app().root.add_widget(dragelem)
+        self.dragelem = dragelem = PlaygroundDragElement(playground=self.playground, child=widget)
         dragelem.widgettree = self.playground.widgettree
+        dragelem.center_x = x
+        dragelem.y = y + 20
+        App.get_running_app().root.add_widget(dragelem)
         return dragelem
 
 

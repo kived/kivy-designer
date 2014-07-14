@@ -493,7 +493,8 @@
     size_hint_y: None
     height: '22pt'
     font_size: '10pt'
-    on_press_and_touch: app.create_draggable_element(self.text, args[1])
+    #on_press_and_touch: app.create_draggable_element(self.text, args[1])
+    on_press_and_touch: app.create_new_widget(self.text, args[1], self.to_window)
 
 <StatusBar>:
     app: app

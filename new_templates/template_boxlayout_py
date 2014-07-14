@@ -1,7 +1,8 @@
 from kivy.app import App
-from kivy.uix.boxlayout import BoxLayout
+#from kivy.uix.boxlayout import BoxLayout
+from kivy.uix.gridlayout import GridLayout
 
-class RootWidget(BoxLayout):
+class RootWidget(GridLayout):
     '''This the class representing your root widget.
        By default it is inherited from BoxLayout,
        you can use any other layout/widget depending on your usage.
