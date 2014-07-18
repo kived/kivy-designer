@@ -88,7 +88,7 @@ class PropertyBase(object):
             conversion_err = True
 
         root = App.get_running_app().root
-        if not conversion_err:
+        if not conversion_err and oldvalue != value:
             try:
                 setattr(self.propwidget, self.propname, value)
                 self.kv_code_input.set_property_value(self.propwidget,
