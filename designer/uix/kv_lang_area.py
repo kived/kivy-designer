@@ -16,6 +16,8 @@ from designer.helper_functions import get_indent_str, get_line_end_pos,\
     get_line_start_pos, get_indent_level, get_indentation
 from designer.uix.designer_code_input import DesignerCodeInput
 
+from kvlang.ast import AST
+
 
 class KVLangArea(DesignerCodeInput):
     '''KVLangArea is the CodeInput for editing kv lang. It emits on_show_edit
@@ -50,6 +52,77 @@ class KVLangArea(DesignerCodeInput):
         super(KVLangArea, self).__init__(**kwargs)
         self._reload_trigger = Clock.create_trigger(self.func_reload_kv, 1)
         self.bind(text=self._reload_trigger)
+        self.canvas.ask_update()
+        self.ast = AST()
+        App.get_running_app().bind(widget_focused=self.update_focus)
+
+    def func_reload_kv(self, *args):
+        if not self.reload_kv:
+            return
+
+        self.refresh_ast()
+
+        if self.text == '':
+            return
+        
+        if not self._reload:
+            self._reload = True
+            return
+
+        statusbar = self.statusbar
+
+        playground = self.playground
+        project_loader = self.project_loader
+        
+        try:
+            widget = project_loader.reload_from_str(self.text)
+
+            if widget:
+                playground.remove_widget_from_parent(playground.root,
+                                                     None, from_kv=True)
+                playground.add_widget_to_parent(widget, None, from_kv=True)
+
+            statusbar.show_message("")
+            self.have_error = False
+
+        except Exception:
+            self.have_error = True
+            statusbar.show_message("Cannot reload from text")
+
+    def update_focus(self, *_):
+        focused = App.get_running_app().widget_focused
+        if focused:
+            node = self._get_widget_node(focused)
+            textrange = node.get_textrange()
+            curindex = self.cursor_index()
+            if curindex < textrange[0] or curindex > textrange[1]:
+                self.cursor = self.get_cursor_from_index(textrange[0])
+                self._update_scroll(self.parent, self)
+
+    def _update_scroll(self, sv, ti):
+        srow, scol = ti.get_cursor_from_index(ti.selection_from)
+        ti.cursor = srow, scol
+        spos = (ti.cursor_pos[0], ti.cursor_pos[1] - sv.height)
+        x, y = sv.convert_distance_to_scroll(*spos)
+        sv.scroll_y = min(1., max(0., y))
+        sv.update_from_scroll()
+
+    def refresh_ast(self):
+        try:
+            # stream = antlr3.ANTLRStringStream(self.text)
+            # lexer = kvTokenLexer(stream)
+            # tokens = antlr3.CommonTokenStream(lexer)
+            # parser = kvParser(tokens)
+            # result = parser.kvfile()
+            # self.ast = result.tree
+            # self.tokens = tokens.getTokens()
+            # pprint(buildtree(self.ast))
+            self.ast.load(source=self.text)
+            print self.ast.compile()
+            self.update_focus()
+        except Exception, e:
+            self.have_error = True
+            self.statusbar.show_message(str(e))
 
     def _get_widget_path(self, widget):
         '''To get path of a widget, path of a widget is a list containing
@@ -94,7 +167,7 @@ class KVLangArea(DesignerCodeInput):
                 tab_panel = _widget.parent.parent
                 path_to_widget.append(0)
                 place = len(tab_panel.tab_list) - \
-                    tab_panel.tab_list.index(tab_panel.current_tab) - 1
+                        tab_panel.tab_list.index(tab_panel.current_tab) - 1
 
                 path_to_widget.append(place)
                 _widget = tab_panel
@@ -105,61 +178,83 @@ class KVLangArea(DesignerCodeInput):
                     tab_panel = tab_panel.parent
 
                 place = len(tab_panel.tab_list) - \
-                    tab_panel.tab_list.index(_widget) - 1
+                        tab_panel.tab_list.index(_widget) - 1
 
                 path_to_widget.append(place)
                 _widget = tab_panel
 
             else:
                 place = len(_widget.parent.children) - \
-                    _widget.parent.children.index(_widget) - 1
+                        _widget.parent.children.index(_widget) - 1
 
                 path_to_widget.append(place)
                 _widget = _widget.parent
 
         return path_to_widget
 
-    def shift_widget(self, widget, from_index):
-        '''This function will shift widget's kv str from one position
-           to another.
-        '''
-        self._reload = False
-
+    def _get_widget_node(self, widget, last_index=None):
         path = self._get_widget_path(widget)
         path.reverse()
-        prev_path = [x for x in path]
-        prev_path[-1] = len(widget.parent.children) - from_index - 1
-        start_pos, end_pos = self.get_widget_text_pos_from_kv(widget,
-                                                              widget.parent,
-                                                              path_to_widget=
-                                                              prev_path)
-        widget_text = self.text[start_pos:end_pos]
+        if last_index:
+            path[-1] = last_index
+        node = self.ast.root_node
+        path.pop(0)
+        while path:
+            index = path.pop(0)
+            node = node.get_widgets()[index]
+        
+        return node
 
-        if widget.parent.children.index(widget) == 0:
-            self.text = self.text[:start_pos] + self.text[end_pos:]
-            self.add_widget_to_parent(widget, widget.parent,
-                                      kv_str=widget_text)
+    def shift_widget(self, widget, from_index):
+        if not widget or not widget.parent or widget.parent.children.index(widget) == from_index:
+            return
 
-        else:
-            self.text = self.text[:start_pos] + self.text[end_pos:]
-            text = re.sub(r'#.+', '', self.text)
-            lines = text.splitlines()
-            total_lines = len(lines)
-            root_lineno = 0
-            root_name = self.project_loader.root_rule.name
-            for lineno, line in enumerate(lines):
-                pos = line.find(root_name)
-                if pos != -1 and get_indentation(line) == 0:
-                    root_lineno = lineno
-                    break
-
-            next_widget_path = path
-            lineno = self._find_widget_place(next_widget_path, lines,
-                                             total_lines,
-                                             root_lineno + 1)
-
-            self.cursor = (0, lineno)
-            self.insert_text(widget_text+'\n')
+        node = self._get_widget_node(widget, last_index=len(widget.parent.children) - from_index - 1)
+        index = node.parent.get_widgets()[from_index].childIndex
+        self.ast.shift_node(node, index)
+        self.text = self.ast.compile()
+    
+    # def _shift_widget(self, widget, from_index):
+    # 	'''This function will shift widget's kv str from one position
+    # 	   to another.
+    # 	'''
+    # 	self._reload = False
+    # 
+    # 	path = self._get_widget_path(widget)
+    # 	path.reverse()
+    # 	prev_path = [x for x in path]
+    # 	prev_path[-1] = len(widget.parent.children) - from_index - 1
+    # 	start_pos, end_pos = self.get_widget_text_pos_from_kv(widget,
+    # 														  widget.parent,
+    # 														  path_to_widget=
+    # 														  prev_path)
+    # 	widget_text = self.text[start_pos:end_pos]
+    # 
+    # 	if widget.parent.children.index(widget) == 0:
+    # 		self.text = self.text[:start_pos] + self.text[end_pos:]
+    # 		self.add_widget_to_parent(widget, widget.parent,
+    # 								  kv_str=widget_text)
+    # 
+    # 	else:
+    # 		self.text = self.text[:start_pos] + self.text[end_pos:]
+    # 		text = re.sub(r'#.+', '', self.text)
+    # 		lines = text.splitlines()
+    # 		total_lines = len(lines)
+    # 		root_lineno = 0
+    # 		root_name = self.project_loader.root_rule.name
+    # 		for lineno, line in enumerate(lines):
+    # 			pos = line.find(root_name)
+    # 			if pos != -1 and get_indentation(line) == 0:
+    # 				root_lineno = lineno
+    # 				break
+    # 
+    # 		next_widget_path = path
+    # 		lineno = self._find_widget_place(next_widget_path, lines,
+    # 										 total_lines,
+    # 										 root_lineno + 1)
+    # 
+    # 		self.cursor = (0, lineno)
+    # 		self.insert_text(widget_text+'\n')
 
     def add_widget_to_parent(self, widget, target, kv_str=''):
         '''This function is called when widget is added to target.
@@ -369,122 +464,6 @@ class KVLangArea(DesignerCodeInput):
             text = self.text[start_pos:end_pos]
             self.text = self.text[:start_pos] + self.text[end_pos:]
             return text
-
-    def _get_widget_from_path(self, path):
-        '''This function is used to get widget given its path
-        '''
-
-        if not self.playground.root:
-            return None
-
-        if len(path) == 0:
-            return None
-
-        root = self.playground.root
-        path_index = 0
-        widget = root
-        path_length = len(path)
-
-        while widget.children != [] and path_index < path_length:
-            try:
-                widget = widget.children[len(widget.children) -
-                                         1 - path[path_index]]
-            except IndexError:
-                widget = widget.children[0]
-
-            path_index += 1
-
-        return widget
-
-    def func_reload_kv(self, *args):
-        if not self.reload_kv:
-            return
-
-        if self.text == '':
-            return
-
-        if not self._reload:
-            self._reload = True
-            return
-
-        statusbar = self.statusbar
-
-        playground = self.playground
-        project_loader = self.project_loader
-
-        try:
-            widget = project_loader.reload_from_str(self.text)
-
-            if widget:
-                playground.remove_widget_from_parent(playground.root,
-                                                     None, from_kv=True)
-                playground.add_widget_to_parent(widget, None, from_kv=True)
-
-            statusbar.show_message("")
-            self.have_error = False
-
-        except:
-            self.have_error = True
-            statusbar.show_message("Cannot reload from text")
-
-    def _get_widget_path_at_line(self, lineno, root_lineno=0):
-        '''To get widget path of widget at line
-        '''
-
-        if self.text == '':
-            return []
-
-        text = self.text
-        #Remove all comments
-        text = re.sub(r'#.+', '', text)
-
-        lines = text.splitlines()
-        line = lines[lineno]
-
-        #Search for the line containing widget's name
-        _lineno = lineno
-
-        while line.find(':') != -1 and \
-                line.strip().find(':') != len(line.strip()) - 1:
-            lineno -= 1
-            line = lines[lineno]
-
-        path = []
-        child_count = 0
-        #From current line go above and
-        #fill number of children above widget's rule
-        while _lineno >= root_lineno and lines[_lineno].strip() != "" and \
-                get_indentation(lines[lineno]) != 0:
-            _lineno = lineno - 1
-            diff_indent = get_indentation(lines[lineno]) - \
-                get_indentation(lines[_lineno])
-
-            while _lineno >= root_lineno and (lines[_lineno].strip() == ''
-                                              or diff_indent <= 0):
-                if lines[_lineno].strip() != '' and diff_indent == 0 and \
-                    'canvas' not in lines[_lineno] and \
-                        (lines[_lineno].find(':') == -1 or
-                         lines[_lineno].find(':') ==
-                         len(lines[_lineno].rstrip()) - 1):
-                    child_count += 1
-
-                _lineno -= 1
-                diff_indent = get_indentation(lines[lineno]) - \
-                    get_indentation(lines[_lineno])
-
-            lineno = _lineno
-
-            if _lineno > root_lineno:
-                _lineno += 1
-
-            if 'canvas' not in lines[_lineno] and \
-                    lines[_lineno].strip().find(':') == \
-                    len(lines[_lineno].strip()) - 1:
-
-                path.insert(0, child_count)
-                child_count = 0
-
-        return path
 
     def get_property_value(self, widget, prop):
         self._reload = False
@@ -746,10 +725,95 @@ class KVLangArea(DesignerCodeInput):
             self.cursor = (len(lines[widget_lineno]), widget_lineno)
             self.insert_text(indent_str + prop + ': ' + str(value))
 
+    def _get_widget_from_path(self, path):
+        '''This function is used to get widget given its path
+        '''
+    
+        if not self.playground.root:
+            return None
+    
+        if len(path) == 0:
+            return None
+    
+        root = self.playground.root
+        path_index = 0
+        widget = root
+        path_length = len(path)
+    
+        while widget.children != [] and path_index < path_length:
+            try:
+                widget = widget.children[len(widget.children) -
+                                         1 - path[path_index]]
+            except IndexError:
+                widget = widget.children[0]
+    
+            path_index += 1
+    
+        return widget
+
+    def _get_widget_path_at_line(self, lineno, root_lineno=0):
+        '''To get widget path of widget at line
+        '''
+    
+        if self.text == '':
+            return []
+    
+        text = self.text
+        #Remove all comments
+        text = re.sub(r'#.+', '', text)
+    
+        lines = text.splitlines()
+        line = lines[lineno]
+    
+        #Search for the line containing widget's name
+        _lineno = lineno
+    
+        while line.find(':') != -1 and \
+                line.strip().find(':') != len(line.strip()) - 1:
+            lineno -= 1
+            line = lines[lineno]
+    
+        path = []
+        child_count = 0
+        #From current line go above and
+        #fill number of children above widget's rule
+        while _lineno >= root_lineno and lines[_lineno].strip() != "" and \
+                get_indentation(lines[lineno]) != 0:
+            _lineno = lineno - 1
+            diff_indent = get_indentation(lines[lineno]) - \
+                get_indentation(lines[_lineno])
+    
+            while _lineno >= root_lineno and (lines[_lineno].strip() == ''
+                                              or diff_indent <= 0):
+                if lines[_lineno].strip() != '' and diff_indent == 0 and \
+                    'canvas' not in lines[_lineno] and \
+                        (lines[_lineno].find(':') == -1 or
+                         lines[_lineno].find(':') ==
+                         len(lines[_lineno].rstrip()) - 1):
+                    child_count += 1
+    
+                _lineno -= 1
+                diff_indent = get_indentation(lines[lineno]) - \
+                    get_indentation(lines[_lineno])
+    
+            lineno = _lineno
+    
+            if _lineno > root_lineno:
+                _lineno += 1
+    
+            if 'canvas' not in lines[_lineno] and \
+                    lines[_lineno].strip().find(':') == \
+                    len(lines[_lineno].strip()) - 1:
+    
+                path.insert(0, child_count)
+                child_count = 0
+    
+        return path
+
     def _find_widget_place(self, path, lines, total_lines, lineno, indent=4):
         '''To find the line where widget is declared according to path
         '''
-
+    
         child_count = 0
         path_index = 1
         path_length = len(path)
@@ -771,7 +835,7 @@ class KVLangArea(DesignerCodeInput):
                             child_count += 1
                 else:
                     child_count += 1
-
+    
             lineno += 1
-
+    
         return lineno - 1
