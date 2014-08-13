@@ -21,6 +21,7 @@ from kivy.clock import Clock
 from designer.helper_functions import get_indentation, get_indent_str,\
     get_line_start_pos, get_kivy_designer_dir
 from designer.proj_watcher import ProjectWatcher
+from kvlang.observer import Builder as ASTBuilder
 
 PROJ_DESIGNER = '.designer'
 KV_PROJ_FILE_NAME = os.path.join(PROJ_DESIGNER, 'kvproj')
@@ -1114,7 +1115,8 @@ class ProjectLoader(object):
         # Remove all the 'app' lines
         root_str = re.sub(r'.+app+.+', '', root_str)
 
-        root_widget = Builder.load_string(root_str)
+        # root_widget = Builder.load_string(root_str)
+        root_widget = ASTBuilder.load_string(root_str)
 
         if not root_widget:
             root_widget = self.get_widget_of_class(self.root_rule.name)
@@ -1127,6 +1129,31 @@ class ProjectLoader(object):
             root_widget = self.set_root_widget(root_name)
 
         return root_widget
+
+    # def reload_from_ast(self, ast):
+    # 	rules = []
+    # 	
+    # 	try:
+    # 		rules = Builder.match(self.root_rule.widget)
+    # 		for _rule in rules:
+    # 			for _tuple in Builder.rules[:]:
+    # 				if _tuple[1] == _rule:
+    # 					Builder.rules.remove(_tuple)
+    # 	except:
+    # 		pass
+    # 	
+    # 	for _rule in self.class_rules:
+    # 		for rule in Builder.rules[:]:
+    # 			if rule[1].name == '<' + _rule.name + '>':
+    # 				Builder.rules.remove(rule)
+    # 				break
+    # 	
+    # 	root_widget = None
+    # 	
+    # 	#load_ast(Builder, ast)
+    # 	root_widget = ASTBuilder.load_ast(ast)
+    # 	
+    # 	return root_widget
 
     def is_root_a_class_rule(self):
         '''Returns True if root rule is a class rule

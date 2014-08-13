@@ -28,12 +28,12 @@ class ManipulatorOperationBase(OperationBase):
         pass
 
     def do_undo(self):
-        if self._start and self._start != self._finish:
+        if self._start is not None and self._start != self._finish:
             self._apply(self._start)
             self._apply_kv(self.manipulator.playground.kv_code_input, forward=False)
     
     def do_redo(self):
-        if self._start and self._finish and self._start != self._finish:
+        if self._start is not None and self._finish is not None and self._start != self._finish:
             self._apply(self._finish)
             self._apply_kv(self.manipulator.playground.kv_code_input)
     
@@ -132,7 +132,9 @@ class ManipulatorIndexOperation(ManipulatorOperationBase):
         parent.add_widget(self.widget, state_to)
     
     def _apply_kv(self, kvarea, forward=True):
-        pass
+        from_index = (self._start if forward else self._finish)
+        print 'move', self.widget, 'from', from_index, 'to', self.widget.parent.children.index(self.widget)
+        kvarea.shift_widget(self.widget, from_index)
     
     def finish(self):
         self.widget.parent.do_layout()

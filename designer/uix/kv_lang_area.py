@@ -55,6 +55,7 @@ class KVLangArea(DesignerCodeInput):
         self.bind(text=self._reload_trigger)
         self.canvas.ask_update()
         self.ast = AST()
+        #self.ast.bind(on_generate=self.instrument_ast)
         App.get_running_app().bind(widget_focused=self.update_focus)
 
     def func_reload_kv(self, *args):
@@ -119,11 +120,15 @@ class KVLangArea(DesignerCodeInput):
             # self.tokens = tokens.getTokens()
             # pprint(buildtree(self.ast))
             self.ast.load(source=self.text)
+            # self.ast.instrument(self.playground.root)
             print self.ast.compile()
             self.update_focus()
         except Exception, e:
             self.have_error = True
             self.statusbar.show_message(str(e))
+    
+    # def instrument_ast(self, *_):
+    # 	self.ast.instrument(self.playground.root)
 
     def _get_widget_path(self, widget):
         '''To get path of a widget, path of a widget is a list containing
@@ -193,7 +198,7 @@ class KVLangArea(DesignerCodeInput):
 
         return path_to_widget
 
-    def _get_widget_node(self, widget, last_index=None):
+    def _xxget_widget_node(self, widget, last_index=None):
         path = self._get_widget_path(widget)
         path.reverse()
         if last_index:
@@ -201,17 +206,26 @@ class KVLangArea(DesignerCodeInput):
         node = self.ast.root_node
         path.pop(0)
         while path:
+            #index = len(widget.parent.children) - path.pop(0) - 1
             index = path.pop(0)
-            node = node.get_widgets()[index]
+            widgets = node.get_widgets()
+            node = widgets[len(widgets) - index - 1]
+            # node = node.get_widgets()[index]
         
         return node
+
+    def _get_widget_node(self, widget, **kwargs):
+        return widget.ast_node
 
     def shift_widget(self, widget, from_index):
         if not widget or not widget.parent or widget.parent.children.index(widget) == from_index:
             return
 
-        node = self._get_widget_node(widget, last_index=len(widget.parent.children) - from_index - 1)
-        index = node.parent.get_widgets()[from_index].childIndex
+        node = self._get_widget_node(widget, last_index=from_index) #len(widget.parent.children) - from_index - 1)
+        widgets = node.parent.get_widgets()
+        # index = widgets[len(widgets) - from_index - 1].childIndex
+        # index = widgets[from_index].childIndex
+        index = widgets[len(widget.parent.children) - widget.parent.children.index(widget) - 1].childIndex
         self.ast.shift_node(node, index)
         self.text = self.ast.compile()
     
@@ -256,6 +270,11 @@ class KVLangArea(DesignerCodeInput):
     # 
     # 		self.cursor = (0, lineno)
     # 		self.insert_text(widget_text+'\n')
+
+    # def add_widget_to_parent(self, widget, target):
+    # 	if target and widget in target.children:
+    # 		widget_node = self._get_widget_node(widget)
+    # 		target_node = self._get_target_node(target)
 
     def add_widget_to_parent(self, widget, target, kv_str=''):
         '''This function is called when widget is added to target.
